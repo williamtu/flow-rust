@@ -5,7 +5,6 @@ use std::usize;
 // there are no "null" pointers. Instead, Rust has optional pointers,
 // like the optional owned box
 
-
 #[macro_export]
 macro_rules! offsetOf
 {
@@ -19,6 +18,7 @@ macro_rules! offsetOf
     }
 }
 
+#[derive(Debug)]
 pub struct flowmap {
     bits: [u64; FLOWMAP_UNITS],
 }
@@ -77,6 +77,7 @@ impl miniflow {
 /* Context for pushing data to a miniflow. */
 struct mf_ctx<'a> {
     pub map: flowmap,
+    pub data_ofs: usize,
     pub data: &'a mut [u64],
     //data: std::slice::IterMut,
     //end: &'a mut [u64], // cause multiple mutable borrow
@@ -86,6 +87,7 @@ impl<'a> mf_ctx<'a> {
     pub fn from_mf(map_: flowmap, data_: &'a mut [u64]) -> mf_ctx<'a> {
         mf_ctx {
             map: map_,
+            data_ofs: 0,
             data: data_,
         }
     }
@@ -98,28 +100,22 @@ impl<'a> mf_ctx<'a> {
         self.map.flowmap_set(ofs, 1);
     }
 
-    //pub fn miniflow_push_uint32_(&mut self, ofs: usize, value: u32) {
-/*
-    pub fn miniflow_push_uint32_(&'a self, ofs: usize, value: u32) {
+    pub fn miniflow_push_uint32_(&mut self, ofs: usize, value: u32) {
+        let data_ofs = self.data_ofs;
         if ofs % 8 == 0 {
             self.miniflow_set_map(ofs / 8);
-            self.data[0] = value as u64;
+            self.data[data_ofs] = value as u64;
         } else if ofs % 8 == 4 {
-            //miniflow_assert_in_map(ofs / 8);
-            self.data[0] = (value as u64) << 32;
-            //self.data = &mut self.data[1..]; // move to next u64
-            let mut iter = self.data.iter_mut();
-            iter.next();
-            self.data = iter.into_slice();
+            self.data[data_ofs] |= (value as u64) << 32;
+            self.data_ofs += 1;
         }
     }
-*/
-    pub fn miniflow_push_uint64_(&'a mut self, ofs: usize, value: u64) {
-        self.data[0] = value;
-//        self.data = &mut self.data[1..];
-//        let mut iter = self.data.iter_mut();
-//        iter.next();
-//        self.data = iter.into_slice();
+
+    pub fn miniflow_push_uint64_(&mut self, ofs: usize, value: u64) {
+        let data_ofs = self.data_ofs;
+        self.miniflow_set_map(ofs / 8);
+        self.data[data_ofs] = value;
+        self.data_ofs += 1;
     }
 }
 
@@ -137,15 +133,23 @@ fn test() {
 
     let mut mf: miniflow = miniflow::new();
     let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
-    let ofs = 8;
+    let ofs = 0;
 
-    mfx.miniflow_push_uint64_(ofs, 1234);
-    //mfx.miniflow_push_uint64_(ofs + 1, 1234);
+    mfx.miniflow_push_uint64_(ofs, 1);
+    assert_eq!(mfx.map.bits, [1, 0]);
+    mfx.miniflow_push_uint64_(ofs + 8, 2);
+    assert_eq!(mfx.map.bits, [3, 0]);
+    mfx.miniflow_push_uint64_(ofs + 16, 3);
+    assert_eq!(mfx.map.bits, [7, 0]);
+    assert_eq!(mfx.data, [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
-    //miniflow_push_uint32!(&mfx, values, 1234);
 
-    let ooo = offsetOf!(miniflow, values);
+    mfx.miniflow_push_uint32_(ofs + 24, 0xffff);
+    mfx.miniflow_push_uint32_(ofs + 24 + 4, 0xeeee);
+    let expected: &mut [u64] = &mut [1, 2, 3, 0xeeee0000ffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    println!("{}", ooo)
+    assert_eq!(mfx.data, expected);
+    assert_eq!(mfx.map.bits, [0xf, 0]);
+//    panic!("{:x?}", mfx.map.bits);
 }
 
