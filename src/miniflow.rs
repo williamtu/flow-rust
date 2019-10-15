@@ -1,4 +1,6 @@
 use std::usize;
+use crate::flow::*;
+
 // use std::fmt::{Debug, Formatter};
 
 // Rust's pointer types must always point to a valid location;
@@ -147,9 +149,16 @@ fn test() {
     mfx.miniflow_push_uint32_(ofs + 24, 0xffff);
     mfx.miniflow_push_uint32_(ofs + 24 + 4, 0xeeee);
     let expected: &mut [u64] = &mut [1, 2, 3, 0xeeee0000ffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
     assert_eq!(mfx.data, expected);
     assert_eq!(mfx.map.bits, [0xf, 0]);
+
+    let fff = flow::default();
+    assert_eq!(offsetOf!(flow, pkt_mark), 148);
+    assert_eq!(offsetOf!(flow, dp_hash), 152);
+    assert_eq!(offsetOf!(flow, nw_src), 240);
+//    panic!("{:?}", offsetOf!(flow, metadata)); //72
+//    panic!("{:?}", offsetOf!(flow, pkt_mark)); //148
+
 //    panic!("{:x?}", mfx.map.bits);
 }
 

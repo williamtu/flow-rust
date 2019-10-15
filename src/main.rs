@@ -9,6 +9,7 @@
 pub mod dp_packet;
 pub mod miniflow;
 pub mod parser;
+pub mod flow;
 
 fn main() {
     println!("Hello, world!");
