@@ -124,8 +124,16 @@ impl<'a> mf_ctx<'a> {
 #[macro_export]
 macro_rules! miniflow_push_uint32 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(miniflow, $FIELD) as usize;
+        let ofs = offsetOf!(flow, $FIELD) as usize;
         $MFX.miniflow_push_uint32_(ofs, $VALUE)
+    });
+}
+
+#[macro_export]
+macro_rules! miniflow_push_uint64 {
+    ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
+        let ofs = offsetOf!(flow, $FIELD) as usize;
+        $MFX.miniflow_push_uint64_(ofs, $VALUE)
     });
 }
 
@@ -145,17 +153,33 @@ fn test() {
     assert_eq!(mfx.map.bits, [7, 0]);
     assert_eq!(mfx.data, [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
-
     mfx.miniflow_push_uint32_(ofs + 24, 0xffff);
     mfx.miniflow_push_uint32_(ofs + 24 + 4, 0xeeee);
-    let expected: &mut [u64] = &mut [1, 2, 3, 0xeeee0000ffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let expected: &mut [u64] =
+        &mut [1, 2, 3, 0xeeee0000ffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
     assert_eq!(mfx.data, expected);
     assert_eq!(mfx.map.bits, [0xf, 0]);
 
+    /* test macro offsetOf */
     let fff = flow::default();
     assert_eq!(offsetOf!(flow, pkt_mark), 148);
     assert_eq!(offsetOf!(flow, dp_hash), 152);
     assert_eq!(offsetOf!(flow, nw_src), 240);
+
+    /* Push nw_src and nw_dst */
+    /* 240 / 8 = 30, 1 << 30 = 0x40000000 */
+    miniflow_push_uint32!(mfx, nw_src, 4);
+    assert_eq!(mfx.map.bits, [0x4000000f, 0]);
+
+    miniflow_push_uint32!(mfx, nw_dst, 2);
+    assert_eq!(mfx.map.bits, [0x4000000f, 0]);
+
+    let expected: &mut [u64] =
+        &mut [1, 2, 3, 0xeeee0000ffff, 0x200000004, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    assert_eq!(mfx.data, expected);
+
+//    panic!("{:x?}", mfx.data);
 //    panic!("{:?}", offsetOf!(flow, metadata)); //72
 //    panic!("{:?}", offsetOf!(flow, pkt_mark)); //148
 
