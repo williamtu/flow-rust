@@ -97,6 +97,12 @@ impl flowmap {
             i += 1;
         }
     }
+
+    // consider use:
+    //  https://docs.rs/bitvec/0.2.0/bitvec/trait.Bits.html
+    pub fn flowmap_n_1bits(&self) {
+
+    }
     //pub fn flowmap_and
     //pub fn flowmap_clear
 
@@ -114,6 +120,18 @@ impl miniflow {
             values: [0; 20],
         }
     }
+    pub fn miniflow_values(&self) -> &[u64] {
+        return &self.values;
+    }
+
+    pub fn miniflow_get_values(&mut self) -> &mut [u64] {
+        return &mut self.values;
+    }
+
+    //pub fn miniflow_n_values(&self) -> usize {
+        //return self.map.flowmap_n_1bits();
+    //}
+
 }
 
 /* Context for pushing data to a miniflow. */
