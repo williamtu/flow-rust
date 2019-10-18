@@ -1,5 +1,4 @@
 use std::usize;
-use crate::flow::*;
 use std::convert::TryInto;
 
 // use std::fmt::{Debug, Formatter};
@@ -309,121 +308,127 @@ macro_rules! miniflow_push_macs {
     });
 }
 
-#[test]
-fn test_push() {
+#[cfg(test)]
+mod tests {
+    use crate::flow::*;
+    use super::*;
 
-    let mut mf: miniflow = miniflow::new();
-    let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
-    let ofs = 0;
+    #[test]
+    fn test_push() {
 
-    mfx.miniflow_push_uint64_(ofs, 1);
-    assert_eq!(mfx.map.bits, [1, 0]);
-    mfx.miniflow_push_uint64_(ofs + 8, 2);
-    assert_eq!(mfx.map.bits, [3, 0]);
-    mfx.miniflow_push_uint64_(ofs + 16, 3);
-    assert_eq!(mfx.map.bits, [7, 0]);
-    assert_eq!(mfx.data, [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let mut mf: miniflow = miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let ofs = 0;
 
-    mfx.miniflow_push_uint32_(ofs + 24, 0xffff);
-    mfx.miniflow_push_uint32_(ofs + 24 + 4, 0xeeee);
-    let expected: &mut [u64] =
-        &mut [1, 2, 3, 0xeeee0000ffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        mfx.miniflow_push_uint64_(ofs, 1);
+        assert_eq!(mfx.map.bits, [1, 0]);
+        mfx.miniflow_push_uint64_(ofs + 8, 2);
+        assert_eq!(mfx.map.bits, [3, 0]);
+        mfx.miniflow_push_uint64_(ofs + 16, 3);
+        assert_eq!(mfx.map.bits, [7, 0]);
+        assert_eq!(mfx.data, [1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
-    assert_eq!(mfx.data, expected);
-    assert_eq!(mfx.map.bits, [0xf, 0]);
+        mfx.miniflow_push_uint32_(ofs + 24, 0xffff);
+        mfx.miniflow_push_uint32_(ofs + 24 + 4, 0xeeee);
+        let expected: &mut [u64] =
+            &mut [1, 2, 3, 0xeeee0000ffff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    let macs = [0x00, 0x23, 0x54, 0x07, 0x93, 0x6c, /* dest MAC */
-                0x00, 0x1b, 0x21, 0x0f, 0x91, 0x9b /* src MAC */
-                ];
-    mfx.miniflow_push_macs_(ofs + 32, &macs);
-    let expected: &mut [u64] =
-        &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert_eq!(mfx.data, expected);
-    assert_eq!(mfx.map.bits, [0x3f, 0]);
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0xf, 0]);
 
-    mfx.miniflow_pad_to_64_(ofs + 44);
+        let macs = [0x00, 0x23, 0x54, 0x07, 0x93, 0x6c, /* dest MAC */
+                    0x00, 0x1b, 0x21, 0x0f, 0x91, 0x9b /* src MAC */
+                    ];
+        mfx.miniflow_push_macs_(ofs + 32, &macs);
+        let expected: &mut [u64] =
+            &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0x3f, 0]);
 
-    let v = 0x1;
-    mfx.miniflow_push_uint8_(ofs + 48, v);
-    assert_eq!(mfx.map.bits, [0x7f, 0]);
-    mfx.miniflow_push_uint8_(ofs + 49, v + 1);
-    mfx.miniflow_push_uint8_(ofs + 50, v + 2);
-    mfx.miniflow_push_uint8_(ofs + 55, v + 3);
-    assert_eq!(mfx.map.bits, [0x7f, 0]);
+        mfx.miniflow_pad_to_64_(ofs + 44);
 
-    let expected: &mut [u64] =
-        &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert_eq!(mfx.data, expected);
+        let v = 0x1;
+        mfx.miniflow_push_uint8_(ofs + 48, v);
+        assert_eq!(mfx.map.bits, [0x7f, 0]);
+        mfx.miniflow_push_uint8_(ofs + 49, v + 1);
+        mfx.miniflow_push_uint8_(ofs + 50, v + 2);
+        mfx.miniflow_push_uint8_(ofs + 55, v + 3);
+        assert_eq!(mfx.map.bits, [0x7f, 0]);
 
-    //panic!("{:x?}", mfx.map.bits);
-}
+        let expected: &mut [u64] =
+            &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
 
-#[test]
-fn test_macro_push() {
+        //panic!("{:x?}", mfx.map.bits);
+    }
 
-    let mut mf: miniflow = miniflow::new();
-    let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+    #[test]
+    fn test_macro_push() {
 
-    /* Push */
-    miniflow_push_uint32!(mfx, recirc_id, 0xa);
-    miniflow_push_uint8!(mfx, ct_state, 0xb);
-    miniflow_push_uint8!(mfx, ct_nw_proto, 0xc);
-    miniflow_push_uint16!(mfx, ct_zone, 0xd);
+        let mut mf: miniflow = miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
 
-    assert_eq!(mfx.map.bits, [0x100000, 0]);
-    let expected: &mut [u64] =
-        &mut [0xd0c0b0000000a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert_eq!(mfx.data, expected);
+        /* Push */
+        miniflow_push_uint32!(mfx, recirc_id, 0xa);
+        miniflow_push_uint8!(mfx, ct_state, 0xb);
+        miniflow_push_uint8!(mfx, ct_nw_proto, 0xc);
+        miniflow_push_uint16!(mfx, ct_zone, 0xd);
 
-    let macs = [0x00, 0x23, 0x54, 0x07, 0x93, 0x6c, /* dest MAC */
-                0x00, 0x1b, 0x21, 0x0f, 0x91, 0x9b /* src MAC */
-                ];
+        assert_eq!(mfx.map.bits, [0x100000, 0]);
+        let expected: &mut [u64] =
+            &mut [0xd0c0b0000000a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
 
-    miniflow_push_macs!(mfx, dl_dst, &macs);
+        let macs = [0x00, 0x23, 0x54, 0x07, 0x93, 0x6c, /* dest MAC */
+                    0x00, 0x1b, 0x21, 0x0f, 0x91, 0x9b /* src MAC */
+                    ];
 
-    let expected: &mut [u64] =
-        &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x9b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert_eq!(mfx.data, expected);
-    assert_eq!(mfx.map.bits, [0x6100000, 0]);
+        miniflow_push_macs!(mfx, dl_dst, &macs);
 
-    let ethertype = 0x0800;
-    miniflow_push_be16!(mfx, dl_type, ethertype);
-    assert_eq!(mfx.map.bits, [0x6100000, 0]);
-    let expected: &mut [u64] =
-        &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert_eq!(mfx.data, expected);
+        let expected: &mut [u64] =
+            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x9b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0x6100000, 0]);
 
-    miniflow_pad_to_64!(mfx, dl_type);
-    /* Push nw_src and nw_dst */
-    /* 240 / 8 = 30, 1 << 30 = 0x40000000 */
-    miniflow_push_uint32!(mfx, nw_src, 4);
-    assert_eq!(mfx.map.bits, [0x46100000, 0]);
-    miniflow_push_uint32!(mfx, nw_dst, 2);
-    assert_eq!(mfx.map.bits, [0x46100000, 0]);
-    let expected: &mut [u64] =
-        &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert_eq!(mfx.data, expected);
-   // panic!("{:x?}", mfx.data);
-}
+        let ethertype = 0x0800;
+        miniflow_push_be16!(mfx, dl_type, ethertype);
+        assert_eq!(mfx.map.bits, [0x6100000, 0]);
+        let expected: &mut [u64] =
+            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
 
-#[test]
-fn test_offsetof() {
+        miniflow_pad_to_64!(mfx, dl_type);
+        /* Push nw_src and nw_dst */
+        /* 240 / 8 = 30, 1 << 30 = 0x40000000 */
+        miniflow_push_uint32!(mfx, nw_src, 4);
+        assert_eq!(mfx.map.bits, [0x46100000, 0]);
+        miniflow_push_uint32!(mfx, nw_dst, 2);
+        assert_eq!(mfx.map.bits, [0x46100000, 0]);
+        let expected: &mut [u64] =
+            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+       // panic!("{:x?}", mfx.data);
+    }
 
-    /* test macro offsetOf */
-    let fff = flow::default();
+    #[test]
+    fn test_offsetof() {
 
-    assert_eq!(offsetOf!(flow, pkt_mark), 148);
-    assert_eq!(offsetOf!(flow, dp_hash), 152);
-    assert_eq!(offsetOf!(flow, nw_src), 240);
+        /* test macro offsetOf */
+        let fff = flow::default();
 
-    assert_eq!(member_sizeof!(flow, dl_dst), 6);
-    assert_eq!(member_sizeof!(flow, arp_sha), 6);
-    assert_eq!(member_sizeof!(flow, nw_src), 4);
-    assert_eq!(member_sizeof!(flow, nw_tos), 1);
-    assert_eq!(member_sizeof!(flow, ct_state), 1);
+        assert_eq!(offsetOf!(flow, pkt_mark), 148);
+        assert_eq!(offsetOf!(flow, dp_hash), 152);
+        assert_eq!(offsetOf!(flow, nw_src), 240);
 
-    assert_eq!(OFFSETOFEND!(flow, nw_src), 244);
+        assert_eq!(member_sizeof!(flow, dl_dst), 6);
+        assert_eq!(member_sizeof!(flow, arp_sha), 6);
+        assert_eq!(member_sizeof!(flow, nw_src), 4);
+        assert_eq!(member_sizeof!(flow, nw_tos), 1);
+        assert_eq!(member_sizeof!(flow, ct_state), 1);
 
-    //panic!("{:?}", OFFSETOFEND!(flow, nw_src));
+        assert_eq!(OFFSETOFEND!(flow, nw_src), 244);
+
+        //panic!("{:?}", OFFSETOFEND!(flow, nw_src));
+    }
 }
 
