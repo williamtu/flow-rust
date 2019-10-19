@@ -11,10 +11,16 @@ pub mod miniflow;
 pub mod parser;
 pub mod flow;
 
+pub struct test_macro {
+    pub m1: u32,
+    pub m2: u32,
+}
 fn main() {
     println!("Hello, world!");
 
     let x = dp_packet::dp_packet::new(128);
     let y = miniflow::miniflow::new();
     let z = parser::parser {};
+
+    member_sizeof!(test_macro, m1);
 }
