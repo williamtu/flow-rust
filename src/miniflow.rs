@@ -1,5 +1,3 @@
-#![macro_use]
-
 use std::usize;
 use std::convert::TryInto;
 
