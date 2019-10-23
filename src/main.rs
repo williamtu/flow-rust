@@ -19,7 +19,7 @@ fn main() {
     println!("Hello, world!");
 
     let x = dp_packet::dp_packet::new(128);
-    let y = miniflow::miniflow::new();
+    let y = miniflow::Miniflow::new();
     let z = parser::parser {};
 
     member_sizeof!(test_macro, m1);

@@ -108,14 +108,14 @@ impl flowmap {
 
 }
 
-pub struct miniflow {
+pub struct Miniflow {
     pub map: flowmap,
     pub values: [u64; 20],
 }
 
-impl miniflow {
-    pub fn new() -> miniflow {
-        miniflow {
+impl Miniflow {
+    pub fn new() -> Miniflow {
+        Miniflow {
             map: flowmap::new(),
             values: [0; 20],
         }
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn test_push() {
 
-        let mut mf: miniflow = miniflow::new();
+        let mut mf: Miniflow = Miniflow::new();
         let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
         let ofs = 0;
 
@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn test_macro_push() {
 
-        let mut mf: miniflow = miniflow::new();
+        let mut mf: Miniflow = Miniflow::new();
         let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
 
         /* Push */
