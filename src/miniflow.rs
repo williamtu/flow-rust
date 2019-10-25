@@ -1,5 +1,7 @@
+extern crate bitvec;
 use std::usize;
 use std::convert::TryInto;
+use bitvec::prelude::*;
 
 // use std::fmt::{Debug, Formatter};
 
@@ -46,6 +48,7 @@ macro_rules! OFFSETOFEND {
 #[derive(Debug)]
 pub struct flowmap {
     bits: [u64; FLOWMAP_UNITS],
+    //bv: BitVec,
 }
 
 pub const FLOWMAP_UNITS:usize = 2;
@@ -58,10 +61,22 @@ impl flowmap {
     pub fn new() -> flowmap {
         flowmap {
             bits: [0; FLOWMAP_UNITS],
+            //bv: BitVec::with_capacity(128),
         }
     }
     //pub fn flowmap_init
     pub fn flowmap_set(&mut self, mut idx: usize, n_bits: usize) {
+        // use bitvec from_raw_parts?
+        /*
+        let mut base = self.bits;
+        let bv = base.as_mut_bitslice::<LittleEndian>();
+        let mut n = n_bits;
+
+        while n > 0 {
+            bv.set(idx, true);
+            idx += 1;
+            n -= 1;
+        }*/
 
         let n_bits_mask = (1 << n_bits) - 1;
         let unit: usize = idx / MAP_T_BITS;
@@ -83,25 +98,24 @@ impl flowmap {
     }
 
     pub fn flowmap_is_set(&self, idx: usize) -> bool {
-        return (self.bits[idx / MAP_T_BITS] & (MAP_1 << (idx % MAP_T_BITS))) != 0;
-
+        let base = self.bits;
+        let bv = base.as_bitslice::<LittleEndian>();
+        return bv[idx];
     }
 
     pub fn assert_flowmap_not_set(&self, idx: usize) {
-        assert_eq!((self.bits[(idx) / MAP_T_BITS] &
-                      (MAP_MAX << ((idx) % MAP_T_BITS))), 0);
-
-        let mut i = idx / MAP_T_BITS + 1;
-        while i < FLOWMAP_UNITS {
-            assert_eq!(self.bits[i], 0);
-            i += 1;
-        }
+        let base = self.bits;
+        let bv = base.as_bitslice::<LittleEndian>();
+        assert_eq!(bv[idx], false);
     }
-
     // consider use:
     //  https://docs.rs/bitvec/0.2.0/bitvec/trait.Bits.html
-    pub fn flowmap_n_1bits(&self) {
+    pub fn flowmap_n_1bits(&self) -> usize {
+        let base = self.bits;
+        let bv = base.as_bitslice::<LittleEndian>();
+        assert_eq!(bv.len(), 128);
 
+        return bv.count_ones();
     }
     //pub fn flowmap_and
     //pub fn flowmap_clear
