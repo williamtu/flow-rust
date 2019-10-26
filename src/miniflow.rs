@@ -66,26 +66,13 @@ impl flowmap {
     }
     //pub fn flowmap_init
     pub fn flowmap_set(&mut self, mut idx: usize, n_bits: usize) {
-        // use bitvec from_raw_parts?
-        /*
-        let mut base = self.bits;
-        let bv = base.as_mut_bitslice::<LittleEndian>();
+        let mut bv = self.bits.as_mut_bitslice::<LittleEndian>();
         let mut n = n_bits;
 
         while n > 0 {
             bv.set(idx, true);
             idx += 1;
             n -= 1;
-        }*/
-
-        let n_bits_mask = (1 << n_bits) - 1;
-        let unit: usize = idx / MAP_T_BITS;
-        idx %= MAP_T_BITS;
-
-        self.bits[unit] |= n_bits_mask << idx;
-
-        if unit + 1 < FLOWMAP_UNITS && idx + n_bits > MAP_T_BITS {
-            self.bits[unit + 1] |= n_bits_mask >> (MAP_T_BITS - idx);
         }
     }
 
