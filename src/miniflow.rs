@@ -53,7 +53,7 @@ macro_rules! DIV_ROUND_UP {
 
 #[derive(Debug)]
 pub struct flowmap {
-    bits: [u64; FLOWMAP_UNITS],
+    pub bits: [u64; FLOWMAP_UNITS],
     //bv: BitVec,
 }
 
@@ -140,7 +140,7 @@ impl Miniflow {
 }
 
 /* Context for pushing data to a miniflow. */
-struct mf_ctx<'a> {
+pub struct mf_ctx<'a> {
     pub map: flowmap,
     pub data_ofs: usize,
     pub data: &'a mut [u64],
@@ -316,7 +316,7 @@ impl<'a> mf_ctx<'a> {
 #[macro_export]
 macro_rules! miniflow_push_uint32 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(Flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint32_(ofs, $VALUE)
     });
 }
@@ -324,7 +324,7 @@ macro_rules! miniflow_push_uint32 {
 #[macro_export]
 macro_rules! miniflow_push_be32 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(Flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint32_(ofs, $VALUE)
     });
 }
@@ -332,7 +332,7 @@ macro_rules! miniflow_push_be32 {
 #[macro_export]
 macro_rules! miniflow_push_uint16 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(Flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint16_(ofs, $VALUE)
     });
 }
@@ -340,7 +340,7 @@ macro_rules! miniflow_push_uint16 {
 #[macro_export]
 macro_rules! miniflow_push_be16 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(Flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint16_(ofs, $VALUE)
     });
 }
@@ -348,7 +348,7 @@ macro_rules! miniflow_push_be16 {
 #[macro_export]
 macro_rules! miniflow_push_uint8 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(Flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint8_(ofs, $VALUE)
     });
 }
@@ -356,7 +356,7 @@ macro_rules! miniflow_push_uint8 {
 #[macro_export]
 macro_rules! miniflow_pad_to_64 {
     ($MFX: expr, $FIELD: ident) => ({
-        let ofs = OFFSETOFEND!(Flow, $FIELD) as usize;
+        let ofs = OFFSETOFEND!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_pad_to_64_(ofs)
     });
 }
@@ -364,7 +364,7 @@ macro_rules! miniflow_pad_to_64 {
 #[macro_export]
 macro_rules! miniflow_push_uint64 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(Flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint64_(ofs, $VALUE)
     });
 }
@@ -388,7 +388,7 @@ macro_rules! miniflow_push_words_32 {
 #[macro_export]
 macro_rules! miniflow_push_macs {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(Flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_macs_(ofs, $VALUE)
     });
 }
