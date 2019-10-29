@@ -45,6 +45,12 @@ macro_rules! OFFSETOFEND {
     }
 }
 
+#[macro_export]
+macro_rules! DIV_ROUND_UP {
+    ($n: expr, $d: expr) => ((($n) + ($d) - 1) / ($d))
+}
+
+
 #[derive(Debug)]
 pub struct flowmap {
     bits: [u64; FLOWMAP_UNITS],
@@ -104,8 +110,6 @@ impl flowmap {
 
         return bv.count_ones();
     }
-    //pub fn flowmap_and
-    //pub fn flowmap_clear
 
 }
 
@@ -185,12 +189,58 @@ impl<'a> mf_ctx<'a> {
         self.data_ofs += 1;
     }
 
+    pub fn miniflow_push_words_(&mut self, ofs: usize, valuep: &[u8], n_words: usize) {
+        assert_eq!(ofs % 8, 0);
+        let mut data_ofs = self.data_ofs;
+        let mut words_to_write = n_words;
+        let mut i = 0;
+
+        self.miniflow_set_maps(ofs/8, n_words);
+        let mut rest: &[u8] = valuep;
+
+        while words_to_write > 0 {
+            let (v, rest2) = rest.split_at(std::mem::size_of::<u64>());
+            self.data[data_ofs] = u64::from_le_bytes(v.try_into().unwrap());
+            words_to_write -= 1;
+            data_ofs += 1;
+            i += 1;
+            rest = &valuep[(i * 8)..];
+        }
+        self.data_ofs += n_words;
+    }
+
+    /* Push 32-bit words padded to 64-bits. */
+    pub fn miniflow_push_words_32_(&mut self, ofs: usize, valuep: &[u8], n_words: usize) {
+        let mut data_ofs = self.data_ofs;
+        let mut words_to_write = n_words / 2;
+        let mut i = 0;
+        self.miniflow_set_maps(ofs / 8, DIV_ROUND_UP!(n_words, 2));
+
+        let mut rest: &[u8] = valuep;
+        while words_to_write > 0 {
+            let (v, rest2) = rest.split_at(std::mem::size_of::<u64>());
+            self.data[data_ofs] = u64::from_le_bytes(v.try_into().unwrap());
+
+            words_to_write -= 1;
+            data_ofs += 1;
+            i += 1;
+            rest = &valuep[(i * 8)..];
+        }
+
+        if n_words % 2 != 0 {
+            let (v2, rest) = rest.split_at(std::mem::size_of::<u32>());
+            self.data[data_ofs] = u32::from_le_bytes(v2.try_into().unwrap()) as u64;
+        }
+        self.data_ofs += DIV_ROUND_UP!(n_words, 2);
+    }
+
     // see https://doc.rust-lang.org/std/primitive.u64.html#method.from_le_bytes
     pub fn miniflow_push_macs_(&mut self, ofs: usize, valuep: &[u8; 12]) {
         let data_ofs = self.data_ofs;
         self.miniflow_set_maps(ofs / 8, 2);
 
-        let (v, rest) = valuep.split_at(std::mem::size_of::<u64>());
+        let mut rest: &[u8] = valuep;
+        let (v, rest) = rest.split_at(std::mem::size_of::<u64>());
         self.data[data_ofs] = u64::from_le_bytes(v.try_into().unwrap());
 
         println!("{:x?}", self.data[data_ofs]);
@@ -320,6 +370,22 @@ macro_rules! miniflow_push_uint64 {
 }
 
 #[macro_export]
+macro_rules! miniflow_push_words {
+    ($MFX: expr, $FIELD: ident, $VALUEP:expr, $N_WORDS:expr) => ({
+        let ofs = offsetOf!(flow, $FIELD) as usize;
+        $MFX.miniflow_push_words_(ofs, $VALUEP, $N_WORDS)
+    });
+}
+
+#[macro_export]
+macro_rules! miniflow_push_words_32 {
+    ($MFX: expr, $FIELD: ident, $VALUE:expr, $N_WORDS:expr) => ({
+        let ofs = offsetOf!(flow, $FIELD) as usize;
+        $MFX.miniflow_push_words_32_(ofs, $VALUE, $N_WORDS)
+    });
+}
+
+#[macro_export]
 macro_rules! miniflow_push_macs {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
         let ofs = offsetOf!(flow, $FIELD) as usize;
@@ -378,7 +444,20 @@ mod tests {
             &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
 
-        //panic!("{:x?}", mfx.map.bits);
+        // Push 3 words
+        let words: [u8; 24]  = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+        mfx.miniflow_push_words_(ofs + 56, &words, 3);
+        let expected: &mut [u64] =
+            &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x1817161514131211, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0x3ff, 0]);
+
+        let words_32: [u8; 20]  = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+        mfx.miniflow_push_words_32_(ofs + 80, &words_32, 5);
+        let expected: &mut [u64] =
+            &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x1817161514131211, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x14131211, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0x1fff, 0]);
     }
 
     #[test]
@@ -426,7 +505,20 @@ mod tests {
         let expected: &mut [u64] =
             &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-       // panic!("{:x?}", mfx.data);
+
+        let words = [1u8; 16];
+        miniflow_push_words!(mfx, ct_label, &words, 2);
+        let expected: &mut [u64] =
+            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0x101010101010101, 0x101010101010101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+
+        let words_32 = [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; /* One mpls_lse has 4-byte, assume 3 mpls  */
+        miniflow_push_words_32!(mfx, mpls_lse, &words_32, 3);
+        let expected: &mut [u64] =
+            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0x101010101010101, 0x101010101010101, 0x807060504030201, 0xc0b0a09, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+
+//        panic!("{:x?}", mfx.data);
     }
 
     #[test]
@@ -448,6 +540,11 @@ mod tests {
         assert_eq!(OFFSETOFEND!(flow, nw_src), 244);
 
         //panic!("{:?}", OFFSETOFEND!(flow, nw_src));
+    }
+    #[test]
+    fn test_div_round_up() {
+        let x = 5;
+        assert_eq!(DIV_ROUND_UP!(5, 2), 3);
     }
 }
 
