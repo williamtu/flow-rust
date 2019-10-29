@@ -1,2 +1,2 @@
 
-pub struct parser {}
+pub struct Parser {}

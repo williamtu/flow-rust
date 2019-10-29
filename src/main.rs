@@ -18,9 +18,9 @@ pub struct test_macro {
 fn main() {
     println!("Hello, world!");
 
-    let x = dp_packet::dp_packet::new(128);
+    let x = dp_packet::Dp_packet::new(128);
     let y = miniflow::Miniflow::new();
-    let z = parser::parser {};
+    let z = parser::Parser {};
 
     member_sizeof!(test_macro, m1);
 }

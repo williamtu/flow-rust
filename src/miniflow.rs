@@ -316,7 +316,7 @@ impl<'a> mf_ctx<'a> {
 #[macro_export]
 macro_rules! miniflow_push_uint32 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint32_(ofs, $VALUE)
     });
 }
@@ -324,7 +324,7 @@ macro_rules! miniflow_push_uint32 {
 #[macro_export]
 macro_rules! miniflow_push_be32 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint32_(ofs, $VALUE)
     });
 }
@@ -332,7 +332,7 @@ macro_rules! miniflow_push_be32 {
 #[macro_export]
 macro_rules! miniflow_push_uint16 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint16_(ofs, $VALUE)
     });
 }
@@ -340,7 +340,7 @@ macro_rules! miniflow_push_uint16 {
 #[macro_export]
 macro_rules! miniflow_push_be16 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint16_(ofs, $VALUE)
     });
 }
@@ -348,7 +348,7 @@ macro_rules! miniflow_push_be16 {
 #[macro_export]
 macro_rules! miniflow_push_uint8 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint8_(ofs, $VALUE)
     });
 }
@@ -356,7 +356,7 @@ macro_rules! miniflow_push_uint8 {
 #[macro_export]
 macro_rules! miniflow_pad_to_64 {
     ($MFX: expr, $FIELD: ident) => ({
-        let ofs = OFFSETOFEND!(flow, $FIELD) as usize;
+        let ofs = OFFSETOFEND!(Flow, $FIELD) as usize;
         $MFX.miniflow_pad_to_64_(ofs)
     });
 }
@@ -364,7 +364,7 @@ macro_rules! miniflow_pad_to_64 {
 #[macro_export]
 macro_rules! miniflow_push_uint64 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(Flow, $FIELD) as usize;
         $MFX.miniflow_push_uint64_(ofs, $VALUE)
     });
 }
@@ -388,7 +388,7 @@ macro_rules! miniflow_push_words_32 {
 #[macro_export]
 macro_rules! miniflow_push_macs {
     ($MFX: expr, $FIELD: ident, $VALUE:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(Flow, $FIELD) as usize;
         $MFX.miniflow_push_macs_(ofs, $VALUE)
     });
 }
@@ -525,19 +525,19 @@ mod tests {
     fn test_offsetof() {
 
         /* test macro offsetOf */
-        let fff = flow::default();
+        let fff = Flow::default();
 
-        assert_eq!(offsetOf!(flow, pkt_mark), 148);
-        assert_eq!(offsetOf!(flow, dp_hash), 152);
-        assert_eq!(offsetOf!(flow, nw_src), 240);
+        assert_eq!(offsetOf!(Flow, pkt_mark), 148);
+        assert_eq!(offsetOf!(Flow, dp_hash), 152);
+        assert_eq!(offsetOf!(Flow, nw_src), 240);
 
-        assert_eq!(member_sizeof!(flow, dl_dst), 6);
-        assert_eq!(member_sizeof!(flow, arp_sha), 6);
-        assert_eq!(member_sizeof!(flow, nw_src), 4);
-        assert_eq!(member_sizeof!(flow, nw_tos), 1);
-        assert_eq!(member_sizeof!(flow, ct_state), 1);
+        assert_eq!(member_sizeof!(Flow, dl_dst), 6);
+        assert_eq!(member_sizeof!(Flow, arp_sha), 6);
+        assert_eq!(member_sizeof!(Flow, nw_src), 4);
+        assert_eq!(member_sizeof!(Flow, nw_tos), 1);
+        assert_eq!(member_sizeof!(Flow, ct_state), 1);
 
-        assert_eq!(OFFSETOFEND!(flow, nw_src), 244);
+        assert_eq!(OFFSETOFEND!(Flow, nw_src), 244);
 
         //panic!("{:?}", OFFSETOFEND!(flow, nw_src));
     }

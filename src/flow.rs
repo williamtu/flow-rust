@@ -144,7 +144,7 @@ pub struct flow_tnl {
 }
 #[derive ( Copy, Clone, Default )]
 #[repr(C)]
-pub struct flow {
+pub struct Flow {
     pub tunnel: flow_tnl,
     pub metadata: uint64_t,
     pub regs: [uint32_t; 16],
@@ -197,7 +197,7 @@ pub struct flow {
 
 #[test]
 fn test() {
-    let mut f = flow::default();
+    let mut f = Flow::default();
 
 //    panic!("{:?}", offsetOf!(flow, pkt_mark));
 

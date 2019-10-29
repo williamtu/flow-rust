@@ -44,7 +44,7 @@ impl dpbuf {
 //    }
 //}
 
-pub struct dp_packet {
+pub struct Dp_packet {
     base_: dpbuf,
     allocated_: u16,
     data_ofs: u32,
@@ -61,10 +61,10 @@ pub struct dp_packet {
     packet_type: u32,
 }
 
-impl dp_packet {
+impl Dp_packet {
     //pub fn new(p_ptr: &'a [u8]) -> dp_packet<'a> {
-    pub fn new(size: usize) -> dp_packet {
-        dp_packet {
+    pub fn new(size: usize) -> Dp_packet {
+        Dp_packet {
             base_: dpbuf::new(size),
                allocated_: 0,
                data_ofs: 0,
@@ -113,15 +113,15 @@ impl dp_packet {
 fn test() {
     let size: usize = 256;
 
-    let mut p = &mut dp_packet::new(size);
+    let mut p = &mut Dp_packet::new(size);
 
     println!("{:#?}", p.dp_packet_base());
 
-    dp_packet::dp_packet_set_data(p, 32);
-    dp_packet::dp_packet_set_data(p, 132);
-    dp_packet::dp_packet_set_size(p, 128);
+    Dp_packet::dp_packet_set_data(p, 32);
+    Dp_packet::dp_packet_set_data(p, 132);
+    Dp_packet::dp_packet_set_size(p, 128);
 
     let buf = dpbuf::new(128);
-    dp_packet::dp_packet_set_base(p, buf);
+    Dp_packet::dp_packet_set_base(p, buf);
 }
 
