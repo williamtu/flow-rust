@@ -372,7 +372,7 @@ macro_rules! miniflow_push_uint64 {
 #[macro_export]
 macro_rules! miniflow_push_words {
     ($MFX: expr, $FIELD: ident, $VALUEP:expr, $N_WORDS:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_words_(ofs, $VALUEP, $N_WORDS)
     });
 }
@@ -380,7 +380,7 @@ macro_rules! miniflow_push_words {
 #[macro_export]
 macro_rules! miniflow_push_words_32 {
     ($MFX: expr, $FIELD: ident, $VALUE:expr, $N_WORDS:expr) => ({
-        let ofs = offsetOf!(flow, $FIELD) as usize;
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_push_words_32_(ofs, $VALUE, $N_WORDS)
     });
 }
