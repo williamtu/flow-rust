@@ -189,47 +189,40 @@ impl<'a> mf_ctx<'a> {
         self.data_ofs += 1;
     }
 
-    pub fn miniflow_push_words_(&mut self, ofs: usize, valuep: &[u8], n_words: usize) {
+    pub fn miniflow_push_words_(&mut self, ofs: usize, valuep: &[u64], n_words: usize) {
         assert_eq!(ofs % 8, 0);
         let mut data_ofs = self.data_ofs;
         let mut words_to_write = n_words;
         let mut i = 0;
-
         self.miniflow_set_maps(ofs/8, n_words);
-        let mut rest: &[u8] = valuep;
 
         while words_to_write > 0 {
-            let (v, rest2) = rest.split_at(std::mem::size_of::<u64>());
-            self.data[data_ofs] = u64::from_le_bytes(v.try_into().unwrap());
+            self.data[data_ofs] = valuep[i];
             words_to_write -= 1;
             data_ofs += 1;
             i += 1;
-            rest = &valuep[(i * 8)..];
         }
         self.data_ofs += n_words;
     }
 
     /* Push 32-bit words padded to 64-bits. */
-    pub fn miniflow_push_words_32_(&mut self, ofs: usize, valuep: &[u8], n_words: usize) {
+    pub fn miniflow_push_words_32_(&mut self, ofs: usize, valuep: &[u32], n_words: usize) {
         let mut data_ofs = self.data_ofs;
         let mut words_to_write = n_words / 2;
         let mut i = 0;
         self.miniflow_set_maps(ofs / 8, DIV_ROUND_UP!(n_words, 2));
 
-        let mut rest: &[u8] = valuep;
+        let mut rest: &[u32] = valuep;
         while words_to_write > 0 {
-            let (v, rest2) = rest.split_at(std::mem::size_of::<u64>());
-            self.data[data_ofs] = u64::from_le_bytes(v.try_into().unwrap());
-
+            self.data[data_ofs] = (rest[1] as u64) << 32 | rest[0] as u64;
             words_to_write -= 1;
             data_ofs += 1;
             i += 1;
-            rest = &valuep[(i * 8)..];
+            rest = &valuep[(i * 2)..];
         }
 
         if n_words % 2 != 0 {
-            let (v2, rest) = rest.split_at(std::mem::size_of::<u32>());
-            self.data[data_ofs] = u32::from_le_bytes(v2.try_into().unwrap()) as u64;
+              self.data[data_ofs] = rest[0] as u64;
         }
         self.data_ofs += DIV_ROUND_UP!(n_words, 2);
     }
@@ -445,17 +438,17 @@ mod tests {
         assert_eq!(mfx.data, expected);
 
         // Push 3 words
-        let words: [u8; 24]  = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+        let words: [u64; 3]  = [0x807060504030201, 0x100f0e0d0c0b0a09, 0x1817161514131211];
         mfx.miniflow_push_words_(ofs + 56, &words, 3);
         let expected: &mut [u64] =
             &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x1817161514131211, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
         assert_eq!(mfx.map.bits, [0x3ff, 0]);
 
-        let words_32: [u8; 20]  = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+        let words_32: [u32; 5]  = [0x4030201, 0x8070605, 0xc0b0a09, 0xf0e0d, 0x14131211];
         mfx.miniflow_push_words_32_(ofs + 80, &words_32, 5);
         let expected: &mut [u64] =
-            &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x1817161514131211, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x14131211, 0, 0, 0, 0, 0, 0, 0];
+            &mut [1, 2, 3, 0xeeee0000ffff, 0x1b006c9307542300, 0x9b910f21, 0x400000000030201, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x1817161514131211, 0x807060504030201, 0xf0e0d0c0b0a09, 0x14131211, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
         assert_eq!(mfx.map.bits, [0x1fff, 0]);
     }
@@ -506,16 +499,17 @@ mod tests {
             &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
 
-        let words = [1u8; 16];
+        let words: [u64; 2]  = [0x807060504030201, 0x100f0e0d0c0b0a09];
         miniflow_push_words!(mfx, ct_label, &words, 2);
         let expected: &mut [u64] =
-            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0x101010101010101, 0x101010101010101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0x807060504030201, 0x100f0e0d0c0b0a09, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
 
-        let words_32 = [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; /* One mpls_lse has 4-byte, assume 3 mpls  */
+        /* One mpls_lse has 4-byte, assume 3 mpls  */
+        let words_32: [u32; 3]  = [0x4030201, 0x8070605, 0xc0b0a09];
         miniflow_push_words_32!(mfx, mpls_lse, &words_32, 3);
         let expected: &mut [u64] =
-            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0x101010101010101, 0x101010101010101, 0x807060504030201, 0xc0b0a09, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0x807060504030201, 0x100f0e0d0c0b0a09, 0x807060504030201, 0xc0b0a09, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
 
 //        panic!("{:x?}", mfx.data);
