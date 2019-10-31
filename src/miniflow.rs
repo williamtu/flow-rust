@@ -228,7 +228,7 @@ impl<'a> mf_ctx<'a> {
     }
 
     // see https://doc.rust-lang.org/std/primitive.u64.html#method.from_le_bytes
-    pub fn miniflow_push_macs_(&mut self, ofs: usize, valuep: &[u8; 12]) {
+    pub fn miniflow_push_macs_(&mut self, ofs: usize, valuep: &[u8]) {
         let data_ofs = self.data_ofs;
         self.miniflow_set_maps(ofs / 8, 2);
 
@@ -524,6 +524,7 @@ mod tests {
         assert_eq!(offsetOf!(Flow, pkt_mark), 148);
         assert_eq!(offsetOf!(Flow, dp_hash), 152);
         assert_eq!(offsetOf!(Flow, nw_src), 240);
+        assert_eq!(offsetOf!(Flow, dl_dst), 200);
 
         assert_eq!(member_sizeof!(Flow, dl_dst), 6);
         assert_eq!(member_sizeof!(Flow, arp_sha), 6);
