@@ -7,10 +7,11 @@
 #![feature(stmt_expr_attributes)]
 
 pub mod dp_packet;
-pub mod miniflow;
-pub mod parser;
 pub mod flow;
+pub mod miniflow;
 pub mod packet;
+pub mod parser;
+pub mod types;
 
 fn main() {
     println!("Hello, world!");

@@ -1,35 +1,4 @@
-extern crate libc;
-
-//mod miniflow;
-//#[macro_use]
-
-pub type uint8_t = libc::c_uchar;
-pub type uint16_t = libc::c_ushort;
-pub type uint32_t = libc::c_uint;
-pub type uint64_t = libc::c_ulong;
-pub type size_t = libc::c_ulong;
-
-#[derive ( Copy, Clone )]
-#[repr ( C )]
-pub union ovs_u128 {
-    pub u32_0: [uint32_t; 4],
-    pub u64_0: C2RustUnnamed,
-}
-
-#[derive ( Copy, Clone, Default )]
-#[repr(C)]
-pub struct C2RustUnnamed {
-    pub lo: uint64_t,
-    pub hi: uint64_t,
-}
-
-impl Default for ovs_u128 {
-    fn default () -> ovs_u128 {
-        ovs_u128 {
-            u32_0: [0; 4],
-        }
-    }
-}
+use crate::types::*;
 
 #[derive ( Copy, Clone, Default )]
 #[repr(C)]
