@@ -11,6 +11,7 @@ pub mod flow;
 pub mod miniflow;
 pub mod packet;
 pub mod parser;
+pub mod tun_metadata;
 pub mod types;
 
 fn main() {

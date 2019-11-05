@@ -10,6 +10,7 @@ edition = "2018"
 libc = "0.2"
 bitvec = "0.15.2"
 byteorder = "1.3.2"
+c2rust-bitfields = "0.3"
 
 [features]
 #![feature(stmt_expr_attributes)]
