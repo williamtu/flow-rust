@@ -293,10 +293,9 @@ impl<'a> mf_ctx<'a> {
         assert_ne!(ofs % 8, 0);
 
         let offset = self.data_ofs;
-        self.miniflow_assert_in_map(ofs / 8);
         self.miniflow_set_map(ofs / 8);
         let bit = (ofs % 8) * 8;
-        let mask = !(1 - (1 << bit)) as u64;
+        let mask = !((1_u64 << bit) - 1);
         self.data[offset] &= mask;
     }
 }
@@ -351,6 +350,14 @@ macro_rules! miniflow_pad_to_64 {
     ($MFX: expr, $FIELD: ident) => ({
         let ofs = OFFSETOFEND!(crate::flow::Flow, $FIELD) as usize;
         $MFX.miniflow_pad_to_64_(ofs)
+    });
+}
+
+#[macro_export]
+macro_rules! miniflow_pad_from_64 {
+    ($MFX: expr, $FIELD: ident) => ({
+        let ofs = offsetOf!(crate::flow::Flow, $FIELD) as usize;
+        $MFX.miniflow_pad_from_64_(ofs)
     });
 }
 
