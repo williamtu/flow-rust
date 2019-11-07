@@ -14,3 +14,9 @@ c2rust-bitfields = "0.3"
 
 [features]
 #![feature(stmt_expr_attributes)]
+
+[lib]
+name = "mylib"
+
+# Create both static and dynamic library
+crate-type = ["staticlib", "cdylib"]
