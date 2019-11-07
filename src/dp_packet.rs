@@ -1,4 +1,8 @@
-use std::usize;
+extern crate libc;
+
+use std::ptr;
+use std::slice;
+use crate::packet::*;
 
 //extern crate rust_extra;
 // use std::fmt::{Debug, Formatter};
@@ -12,6 +16,8 @@ use std::usize;
 //  src/packet_slicing.rs
 //  std::mem
 
+const DP_PACKET_CONTEXT_SIZE: usize = 64;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum dp_packet_source {
     DPBUF_MALLOC,
@@ -21,51 +27,43 @@ pub enum dp_packet_source {
     DPBUF_AFXDP,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct dpbuf {
-    pub base: Vec<u8>,
+#[repr(C)]
+pub union DpPacketData {
+    pub md: pkt_metadata,
+    pub data: [u64; DP_PACKET_CONTEXT_SIZE/8],
 }
 
-pub struct dpbuf_slice<'a> {
-    slice: &'a [u8]
-}
-
-impl dpbuf {
-    pub fn new(size: usize) -> dpbuf {
-        dpbuf {
-            base: vec![0; size],
+impl Default for DpPacketData {
+    fn default() -> DpPacketData {
+        DpPacketData {
+            data: [0; DP_PACKET_CONTEXT_SIZE/8],
         }
     }
 }
 
-//impl Debug for dpbuf {
-//    fn fmt(&self, fotmatter: &mut Formatter) -> Result<(), std::fmt::Error> {
-//        write!(fotmatter, "dpbf: {:?}", self.base)
-//    }
-//}
-
+#[repr(C)]
 pub struct Dp_packet {
-    base_: dpbuf,
-    allocated_: u16,
-    data_ofs: u32,
-    size_: u32,
-    ol_flags: u32,
-    rss_hash: u32,
-    flow_mark: u32,
-    source: dp_packet_source,
-    l2_pad_size: u8,
-    l2_5_ofs: u16,
-    l3_ofs: u16,
-    l4_ofs: u16,
-    cutlen: u32,
-    packet_type: u32,
+    pub base_: *mut libc::c_void,
+    pub allocated_: u16,
+    pub data_ofs: u16,
+    pub size_: u32,
+    pub ol_flags: u32,
+    pub rss_hash: u32,
+    pub flow_mark: u32,
+    pub source: dp_packet_source,
+    pub l2_pad_size: u8,
+    pub l2_5_ofs: u16,
+    pub l3_ofs: u16,
+    pub l4_ofs: u16,
+    pub cutlen: u32,
+    pub packet_type: u32,
+    pub data_: DpPacketData,
 }
 
 impl Dp_packet {
-    //pub fn new(p_ptr: &'a [u8]) -> dp_packet<'a> {
-    pub fn new(size: usize) -> Dp_packet {
+    pub fn new() -> Dp_packet {
         Dp_packet {
-            base_: dpbuf::new(size),
+            base_: ptr::null_mut(),
                allocated_: 0,
                data_ofs: 0,
                size_: 0,
@@ -79,49 +77,31 @@ impl Dp_packet {
                l4_ofs: 0,
                cutlen: 0,
                packet_type: 0,
+               data_: Default::default(),
         }
     }
 
-    pub fn dp_packet_base(&self) -> &dpbuf{
-        // check null pointer
-        return &self.base_;
-    }
-
-    pub fn dp_packet_set_base(&mut self, base: dpbuf) {
-        self.base_ = base;
-    }
-
-    pub fn dp_packet_set_data(&mut self, ofs: u32) {
-        self.data_ofs = ofs;
-    }
-
-    pub fn dp_packet_data(&self) ->  &[u8] {
-        let ofs = self.data_ofs as usize;
-        return &self.base_.base[ofs..];
-    }
-
-    pub fn dp_packet_size(&self) -> u32 {
-        return self.size_;
-    }
-
-    pub fn dp_packet_set_size(&mut self, size: u32) {
-        self.size_ = size;
+    pub fn dp_packet_data(&self) -> &[u8] {
+        if self.data_ofs == std::u16::MAX {
+            return &[];
+        } else {
+            unsafe {
+                let offset = self.data_ofs as isize;
+                let size = self.size_ as usize;
+                return slice::from_raw_parts(self.base_.offset(offset) as *const u8, size);
+            }
+        }
     }
 }
 
-#[test]
-fn test() {
-    let size: usize = 256;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::*;
 
-    let mut p = &mut Dp_packet::new(size);
-
-    println!("{:#?}", p.dp_packet_base());
-
-    Dp_packet::dp_packet_set_data(p, 32);
-    Dp_packet::dp_packet_set_data(p, 132);
-    Dp_packet::dp_packet_set_size(p, 128);
-
-    let buf = dpbuf::new(128);
-    Dp_packet::dp_packet_set_base(p, buf);
+    #[test]
+    fn dp_packet_basic() {
+        assert_eq!(offsetOf!(Dp_packet, packet_type), 40);
+        assert_eq!(offsetOf!(Dp_packet, data_), 48);
+    }
 }
-

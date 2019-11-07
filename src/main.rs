@@ -17,7 +17,7 @@ pub mod types;
 fn main() {
     println!("Hello, world!");
 
-    let x = dp_packet::Dp_packet::new(128);
+    let x = dp_packet::Dp_packet::new();
     let y = miniflow::Miniflow::new();
     let z = parser::Parser {};
 
