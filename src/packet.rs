@@ -1,3 +1,5 @@
+use crate::types::*;
+use crate::flow::*;
 use std::mem;
 
 pub const ETH_ADDR_SIZE: usize = mem::size_of::<EtherAddr>();
@@ -103,9 +105,79 @@ pub struct MplsHeader {
     pub mpls_lse_lo_be: u16,
 }
 
+pub struct conn {
+    // TODO: Add all fields if needed
+}
+
+#[derive(Clone,Copy,Default)]
+pub struct ovs_key_ct_tuple_ipv4 {
+    pub ipv4_src_be: u32,
+    pub ipv4_dst_be: u32,
+    pub src_port_be: u16,
+    pub dst_port_be: u16,
+    pub ipv4_proto: u8,
+}
+
+#[derive(Clone,Copy,Default)]
+pub struct ovs_key_ct_tuple_ipv6 {
+    pub ipv6_src: in6_addr,
+    pub ipv6_dst: in6_addr,
+    pub src_port_be: u16,
+    pub dst_port_be: u16,
+    pub ipv6_proto: u8
+}
+
+#[derive(Clone,Copy)]
+#[repr(C)]
+pub union ct_orig_tuple {
+    pub ipv4: ovs_key_ct_tuple_ipv4,
+    pub ipv6: ovs_key_ct_tuple_ipv6,
+}
+
+impl Default for ct_orig_tuple {
+    fn default() -> ct_orig_tuple {
+        ct_orig_tuple {
+            ipv4: Default::default(),
+        }
+    }
+}
+
+#[derive(Clone,Copy)]
+#[repr(C)]
+pub struct pkt_metadata {
+    pub recirc_id: u32,
+    pub dp_hash: u32,
+    pub skb_priority: u32,
+    pub pkt_mark: u32,
+    pub ct_state: u8,
+    pub ct_orig_tuple_ipv6: bool,
+    pub ct_zone: u16,
+    pub ct_mark: u32,
+    pub ct_label: ovs_u128,
+    pub in_port: flow_in_port,
+    pub conn: *mut conn,
+    pub reply: bool,
+    pub icmp_related: bool,
+    pub pad_to_cacheline_64_1: [u8; 4],
+
+    pub ct_orig_tuple: ct_orig_tuple,
+    pub pad_to_cacheline_64_2: [u8; 24],
+
+    pub tunnel: flow_tnl,
+}
+
+#[cfg(test)]
 mod tests {
     use std::mem;
     use super::*;
+    use crate::*;
+
+    #[test]
+    fn pkt_metadata_alignment() {
+        assert_eq!(offsetOf!(pkt_metadata, icmp_related), 57);
+        assert_eq!(offsetOf!(pkt_metadata, ct_orig_tuple), 64);
+        assert_eq!(offsetOf!(pkt_metadata, tunnel), 128);
+    }
 
     #[test]
     fn vlan_header() {
