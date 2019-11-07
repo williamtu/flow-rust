@@ -472,7 +472,8 @@ mod tests {
         miniflow_push_uint8!(mfx, ct_nw_proto, 0xc);
         miniflow_push_uint16!(mfx, ct_zone, 0xd);
 
-        assert_eq!(mfx.map.bits, [0x100000, 0]);
+        /* recird_id offset = 432. 432 / 8 = 54. */
+        assert_eq!(mfx.map.bits, [0x40000000000000, 0]);
         let expected: &mut [u64] =
             &mut [0xd0c0b0000000a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
@@ -486,22 +487,22 @@ mod tests {
         let expected: &mut [u64] =
             &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x9b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0x6100000, 0]);
+        assert_eq!(mfx.map.bits, [0x1840000000000000, 0]);
 
         let ethertype = 0x0800;
         miniflow_push_be16!(mfx, dl_type, ethertype);
-        assert_eq!(mfx.map.bits, [0x6100000, 0]);
+        assert_eq!(mfx.map.bits, [0x1840000000000000, 0]);
         let expected: &mut [u64] =
             &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
 
         miniflow_pad_to_64!(mfx, dl_type);
         /* Push nw_src and nw_dst */
-        /* 240 / 8 = 30, 1 << 30 = 0x40000000 */
+        /* 512 / 8 = 64 */
         miniflow_push_uint32!(mfx, nw_src, 4);
-        assert_eq!(mfx.map.bits, [0x46100000, 0]);
+        assert_eq!(mfx.map.bits, [0x1840000000000000, 1]);
         miniflow_push_uint32!(mfx, nw_dst, 2);
-        assert_eq!(mfx.map.bits, [0x46100000, 0]);
+        assert_eq!(mfx.map.bits, [0x1840000000000000, 1]);
         let expected: &mut [u64] =
             &mut [0xd0c0b0000000a, 0x1b006c9307542300, 0x8009b910f21, 0x200000004, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
@@ -528,10 +529,11 @@ mod tests {
         /* test macro offsetOf */
         let fff = Flow::default();
 
-        assert_eq!(offsetOf!(Flow, pkt_mark), 148);
-        assert_eq!(offsetOf!(Flow, dp_hash), 152);
-        assert_eq!(offsetOf!(Flow, nw_src), 240);
-        assert_eq!(offsetOf!(Flow, dl_dst), 200);
+        assert_eq!(offsetOf!(Flow, metadata), 344);
+        assert_eq!(offsetOf!(Flow, pkt_mark), 420);
+        assert_eq!(offsetOf!(Flow, dp_hash), 424);
+        assert_eq!(offsetOf!(Flow, nw_src), 512);
+        assert_eq!(offsetOf!(Flow, dl_dst), 472);
 
         assert_eq!(member_sizeof!(Flow, dl_dst), 6);
         assert_eq!(member_sizeof!(Flow, arp_sha), 6);
@@ -539,7 +541,7 @@ mod tests {
         assert_eq!(member_sizeof!(Flow, nw_tos), 1);
         assert_eq!(member_sizeof!(Flow, ct_state), 1);
 
-        assert_eq!(OFFSETOFEND!(Flow, nw_src), 244);
+        assert_eq!(OFFSETOFEND!(Flow, nw_src), 516);
 
         //panic!("{:?}", OFFSETOFEND!(flow, nw_src));
     }

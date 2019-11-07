@@ -1,4 +1,7 @@
 use crate::types::*;
+use std::slice;
+
+pub const FLOW_TNL_F_UDPIF : u16 =  (1 << 4);
 
 #[derive ( Copy, Clone, Default )]
 #[repr(C)]
@@ -6,6 +9,7 @@ pub struct eth_addr {
     pub c2rust_unnamed: C2RustUnnamed_0,
 }
 
+use crate::tun_metadata::*;
 #[derive ( Copy, Clone )]
 #[repr ( C )]
 pub union C2RustUnnamed_0 {
@@ -25,6 +29,17 @@ impl Default for C2RustUnnamed_0 {
 #[repr(C)]
 pub struct in6_addr {
     pub u: C2RustUnnamed_1,
+}
+
+impl in6_addr {
+    pub fn ipv6_addr_is_set(&self) -> bool {
+        for i in 0..16 {
+            if unsafe {self.u.u_s6_addr[i] != 0} {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 #[derive ( Copy, Clone )]
@@ -109,8 +124,21 @@ pub struct flow_tnl {
     pub ersan_dir: uint8_t,
     pub erspan_hwid: uint8_t,
     pub pad1: [uint8_t; 6],
-//    pub metadata: tun_metadata, /* FIXME */
+    pub metadata: Tun_metadata,
 }
+
+impl flow_tnl {
+    pub fn dst_is_set(&self) -> bool {
+        return self.ip_dst != 0 || self.ipv6_dst.ipv6_addr_is_set();
+    }
+
+    pub fn as_u64_slice(&self) -> &[u64] {
+        unsafe {
+            slice::from_raw_parts(self as *const Self as *const u64, std::mem::size_of::<flow_tnl>())
+        }
+    }
+}
+
 #[derive ( Copy, Clone, Default )]
 #[repr(C)]
 pub struct Flow {
@@ -164,10 +192,22 @@ pub struct Flow {
     /* Pad to 64 bits. */
 }
 
-#[test]
-fn test() {
-    let mut f = Flow::default();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::*;
 
-//    panic!("{:?}", offsetOf!(flow, pkt_mark));
+    #[test]
+    fn test() {
+        let mut f = Flow::default();
 
+    //    panic!("{:?}", offsetOf!(flow, pkt_mark));
+
+    }
+
+    #[test]
+    fn flow_alignment() {
+        assert_eq!(offsetOf!(Flow, packet_type), 444);
+        assert_eq!(offsetOf!(flow_tnl, metadata), 72);
+    }
 }

@@ -186,7 +186,7 @@ mod tests {
             &mut [0x7766554433221100, 0x0008bbaa9988, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0x6000000, 0]);
+        assert_eq!(mfx.map.bits, [0x1800000000000000, 0]);
     }
 
     #[test]

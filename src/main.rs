@@ -44,7 +44,7 @@ mod tests {
         miniflow_push_uint8!(mfx, ct_nw_proto, 0xc);
         miniflow_push_uint16!(mfx, ct_zone, 0xd);
 
-        assert_eq!(mfx.map.bits, [0x100000, 0]);
+        assert_eq!(mfx.map.bits, [0x40000000000000, 0]);
         let expected: &mut [u64] =
             &mut [0xd0c0b0000000a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
