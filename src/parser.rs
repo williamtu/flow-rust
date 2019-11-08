@@ -1,5 +1,9 @@
 use byteorder::*;
+use crate::flow::*;
+use crate::miniflow::*;
 use crate::packet::*;
+use crate::tun_metadata::*;
+use crate::types::*;
 use std::mem;
 use super::*;
 
@@ -158,10 +162,150 @@ fn parse_dp_packet<'a>(data: &'a[u8], mf: &mut miniflow::mf_ctx) -> Result<&'a[u
     Ok(&data[offset..])
 }
 
+fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) {
+
+    if md.tunnel.dst_is_set() {
+        let md_size = offsetOf!(flow_tnl, metadata) / mem::size_of::<u64>();
+        miniflow_push_words!(mf, tunnel, md.tunnel.as_u64_slice(), md_size);
+
+        if md.tunnel.flags & FLOW_TNL_F_UDPIF == 0 {
+            if unsafe {md.tunnel.metadata.present.map != 0} {
+                let tun_md_size = mem::size_of::<Tun_metadata>() / mem::size_of::<u64>();
+                let offset = offsetOf!(Flow, tunnel) + offsetOf!(flow_tnl, metadata);
+                mf.miniflow_push_words_(offset, md.tunnel.metadata.as_u64_slice(), tun_md_size);
+            }
+        } else {
+            if unsafe {md.tunnel.metadata.present.len != 0} {
+                let offset = offsetOf!(Flow, tunnel) + offsetOf!(flow_tnl, metadata)
+                                + offsetOf!(Tun_metadata, present);
+                mf.miniflow_push_words_(offset, md.tunnel.metadata.present.as_u64_slice(), 1);
+
+                let offset = offsetOf!(Flow, tunnel) + offsetOf!(flow_tnl, metadata)
+                                + offsetOf!(Tun_metadata, opts) + offsetOf!(tun_md_opts, gnv);
+                mf.miniflow_push_words_(offset, md.tunnel.metadata.opts.as_u64_slice(),
+                                        DIV_ROUND_UP!(unsafe{(md.tunnel.metadata.present.len as usize)}, mem::size_of::<u64>()));
+            }
+        }
+    }
+
+    if md.skb_priority != 0 || md.pkt_mark != 0 {
+        miniflow_push_uint32!(mf, skb_priority, md.skb_priority);
+        miniflow_push_uint32!(mf, pkt_mark, md.pkt_mark);
+    }
+
+    miniflow_push_uint32!(mf, dp_hash, md.dp_hash);
+    miniflow_push_uint32!(mf, in_port, unsafe {md.in_port.odp_port} );
+
+    if md.ct_state != 0 {
+        miniflow_push_uint32!(mf, recirc_id, md.recirc_id);
+        miniflow_push_uint8!(mf, ct_state, md.ct_state);
+        //TODO: ct_nw_proto_p = miniflow_pointer(mf, ct_nw_proto);
+
+        miniflow_push_uint8!(mf, ct_nw_proto, 0);
+        miniflow_push_uint16!(mf, ct_zone, md.ct_zone);
+        miniflow_push_uint32!(mf, ct_mark, md.ct_mark);
+        miniflow_push_be32!(mf, packet_type, packet_type_be);
+
+        if !md.ct_label.is_zero() {
+            mf.miniflow_push_words_(offsetOf!(Flow, ct_label), md.ct_label.as_u64_slice(),
+                    mem::size_of::<ovs_u128>() / mem::size_of::<u64>());
+        }
+    } else {
+        if md.recirc_id != 0 {
+            miniflow_push_uint32!(mf, recirc_id, md.recirc_id);
+            miniflow_pad_to_64!(mf, recirc_id);
+        }
+        miniflow_pad_from_64!(mf, packet_type);
+        miniflow_push_be32!(mf, packet_type, packet_type_be);
+    }
+}
+
+fn miniflow_extract() {
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::miniflow::*;
+    use std::ptr;
+
+    #[test]
+    fn metadata() {
+        let md: pkt_metadata = pkt_metadata {
+            recirc_id: 0x11,
+            dp_hash: 0x22,
+            skb_priority : 0x33,
+            pkt_mark: 0x44,
+            ct_state: 0x5,
+            ct_orig_tuple_ipv6: false,
+            ct_zone: 0x66,
+            ct_mark: 0x77,
+            ct_label: ovs_u128 {
+                u64_0: C2RustUnnamed {
+                    lo: 0x1111,
+                    hi: 0x2222,
+                }
+            },
+            in_port: flow_in_port {
+                odp_port: 0x99,
+            },
+            conn: ptr::null_mut(),
+            reply: false,
+            icmp_related: false,
+            pad_to_cacheline_64_1: [0_u8; 4],
+            ct_orig_tuple: Default::default(),
+            pad_to_cacheline_64_2: [0_u8; 24],
+            tunnel: Default::default(),
+        };
+
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+
+        parse_metadata(&md, 0x0800, &mut mfx);
+        let expected: &mut [u64] =
+            &mut [0x0000004400000033, 0x0000009900000022, 0x0066000500000011, 0x0000080000000077,
+                    0x1111, 0x2222, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+    }
+
+    #[test]
+    fn metadata_no_ct_state() {
+        let md: pkt_metadata = pkt_metadata {
+            recirc_id: 0x11,
+            dp_hash: 0x22,
+            skb_priority : 0x33,
+            pkt_mark: 0x44,
+            ct_state: 0x0,
+            ct_orig_tuple_ipv6: false,
+            ct_zone: 0x0,
+            ct_mark: 0x0,
+            ct_label: ovs_u128 {
+                u64_0: C2RustUnnamed {
+                    lo: 0x0,
+                    hi: 0x0,
+                }
+            },
+            in_port: flow_in_port {
+                odp_port: 0x99,
+            },
+            conn: ptr::null_mut(),
+            reply: false,
+            icmp_related: false,
+            pad_to_cacheline_64_1: [0_u8; 4],
+            ct_orig_tuple: Default::default(),
+            pad_to_cacheline_64_2: [0_u8; 24],
+            tunnel: Default::default(),
+        };
+
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+
+        parse_metadata(&md, 0x0800, &mut mfx);
+        let expected: &mut [u64] =
+            &mut [0x0000004400000033, 0x0000009900000022, 0x11, 0x0000080000000000,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+    }
 
     #[test]
     fn l2_bad_length() {
