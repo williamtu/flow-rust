@@ -29,7 +29,7 @@ fn is_mpls(eth_type: u16) -> bool {
     return false;
 }
 
-fn parse_mpls <'a>(data: &'a[u8], mpls_labels: &mut [u32; MAX_MPLS_LABELS]) -> (&'a[u8], usize) {
+fn parse_mpls (data: &[u8], mpls_labels: &mut [u32; MAX_MPLS_LABELS]) -> (usize, usize) {
     let mut count: usize = 0;
     let mut offset: usize = 0;
 
@@ -52,32 +52,31 @@ fn parse_mpls <'a>(data: &'a[u8], mpls_labels: &mut [u32; MAX_MPLS_LABELS]) -> (
         }
     }
 
-    return (&data[offset..], std::cmp::min(count, MAX_MPLS_LABELS));
+    return (offset, std::cmp::min(count, MAX_MPLS_LABELS));
 }
 
-fn parse_ethertype<'a>(data: &'a[u8]) -> (&'a[u8], u16) {
+fn parse_ethertype(data: &[u8]) -> (usize, u16) {
     let mut offset: usize = 0;
 
     let eth_type = BigEndian::read_u16(data);
     offset += ETH_TYPE_SIZE;
 
     if eth_type >= EtherType::Min as u16 {
-        return (&data[offset..], eth_type);
+        return (offset, eth_type);
     }
 
     if data[offset..].len() < LLC_SNAP_HEADER_SIZE {
-        return (&data[offset..], EtherType::NotEth as u16);
+        return (offset, EtherType::NotEth as u16);
     }
 
-    let mut rest_data  = &data[offset..];
     let mut llc: LlcSnapHeader = Default::default();
-    llc.llc_header.llc_dsap = rest_data[0];
-    llc.llc_header.llc_ssap = rest_data[1];
-    llc.llc_header.llc_cntl = rest_data[2];
-    llc.snap_header.snap_org[0] = rest_data[3];
-    llc.snap_header.snap_org[1] = rest_data[4];
-    llc.snap_header.snap_org[2] = rest_data[5];
-    llc.snap_header.snap_type = BigEndian::read_u16(&rest_data[6..8]);
+    llc.llc_header.llc_dsap = data[offset];
+    llc.llc_header.llc_ssap = data[offset+1];
+    llc.llc_header.llc_cntl = data[offset+2];
+    llc.snap_header.snap_org[0] = data[offset+3];
+    llc.snap_header.snap_org[1] = data[offset+4];
+    llc.snap_header.snap_org[2] = data[offset+5];
+    llc.snap_header.snap_type = BigEndian::read_u16(&data[offset+6..offset+8]);
 
     if llc.llc_header.llc_dsap != LLC_DSAP_SNAP
         || llc.llc_header.llc_ssap != LLC_SSAP_SNAP
@@ -85,18 +84,18 @@ fn parse_ethertype<'a>(data: &'a[u8]) -> (&'a[u8], u16) {
         || llc.snap_header.snap_org[0] != 0
         || llc.snap_header.snap_org[1] != 0
         || llc.snap_header.snap_org[2] != 0 {
-        return (&data[offset..], EtherType::NotEth as u16);
+        return (offset, EtherType::NotEth as u16);
     }
 
-    rest_data = &rest_data[LLC_SNAP_HEADER_SIZE..];
+    offset += LLC_SNAP_HEADER_SIZE;
     if llc.snap_header.snap_type >= EtherType::Min as u16 {
-        return (&rest_data, llc.snap_header.snap_type);
+        return (offset, llc.snap_header.snap_type);
     }
 
-    return (&rest_data, EtherType::NotEth as u16);
+    return (offset, EtherType::NotEth as u16);
 }
 
-fn parse_vlan<'a>(data: &'a[u8], vlan_hdrs: &mut [u32; MAX_VLAN_HEADERS]) -> (&'a[u8], usize) {
+fn parse_vlan(data: &[u8], vlan_hdrs: &mut [u32; MAX_VLAN_HEADERS]) -> (usize, usize) {
     let mut eth_type = BigEndian::read_u16(data);
     let mut offset : usize = 0;
     let mut n : usize = 0;
@@ -118,51 +117,61 @@ fn parse_vlan<'a>(data: &'a[u8], vlan_hdrs: &mut [u32; MAX_VLAN_HEADERS]) -> (&'
         eth_type = BigEndian::read_u16(&data[offset..offset+2]);
         n += 1;
     }
-    return (&data[offset..], n);
+
+    return (offset, n);
 }
 
-fn parse_dp_packet<'a>(data: &'a[u8], mf: &mut miniflow::mf_ctx) -> Result<&'a[u8], ParseError> {
+pub fn parse_l2(data: &[u8], mf: &mut miniflow::mf_ctx, packet_type_be: u32)
+    -> Result<(usize, u16), ParseError> {
     let mut offset: usize = 0;
-    let mut dl_type: u16 = 0xFFFF;
+    let mut dl_type: u16 = std::u16::MAX;
+    let mut l2_5_ofs: u16 = std::u16::MAX;
 
-    // TODO: metadata
+    if packet_type_be == PT_ETH.to_be() {
+        if data.len() < ETH_HEADER_SIZE {
+            return Err(ParseError::BadLength);
+        }
 
-    // L2, ethernet
-    // TODO: L3 packet without L2 header packet_type != PT_ETH
-    if data.len() < ETH_HEADER_SIZE {
-        return Err(ParseError::BadLength);
-    }
+        miniflow_push_macs!(mf, dl_dst, &data);
+        offset += 2 * ETH_ADDR_SIZE;
 
-    miniflow_push_macs!(mf, dl_dst, &data);
-    offset += 2 * ETH_ADDR_SIZE;
+        /* Parse VLAN */
+        let mut vlan_hdrs: [u32; MAX_VLAN_HEADERS] = [0; MAX_VLAN_HEADERS];
+        let (used, n_vlans) = parse_vlan(&data[offset..], &mut vlan_hdrs);
+        offset += used;
 
-    /* Parse VLAN */
-    let mut vlan_hdrs: [u32; MAX_VLAN_HEADERS] = [0; MAX_VLAN_HEADERS];
-    let (mut rest, n_vlans) = parse_vlan(&data[offset..], &mut vlan_hdrs);
+        /* Parse ether type, LLC + SNAP. */
+        let (used, eth_type) = parse_ethertype(&data[offset..]);
+        offset += used;
+        dl_type = eth_type;
+        miniflow_push_be16!(mf, dl_type, dl_type.to_be());
+        miniflow_pad_to_64!(mf, dl_type);
 
-    /* Parse ether type, LLC + SNAP. */
-    let (rest, dl_type) = parse_ethertype(rest);
-    miniflow_push_be16!(mf, dl_type, dl_type.to_be());
-    miniflow_pad_to_64!(mf, dl_type);
-
-    if n_vlans > 0 {
-        miniflow_push_words_32!(mf, vlans, &vlan_hdrs , n_vlans);
+        if n_vlans > 0 {
+            miniflow_push_words_32!(mf, vlans, &vlan_hdrs , n_vlans);
+        }
+    } else {
+        dl_type = u32::from_be(packet_type_be) as u16;
+        miniflow_pad_from_64!(mf, dl_type);
+        miniflow_push_be16!(mf, dl_type, dl_type.to_be());
+        miniflow_pad_to_64!(mf, dl_type);
     }
 
     /* Parse MPLS */
     if is_mpls(dl_type) {
-        // TODO: set l2_5_ofs
+        l2_5_ofs = offset as u16;
         let mut mpls_labels: [u32; MAX_MPLS_LABELS] = [0; MAX_MPLS_LABELS];
-        let (rest, count) = parse_mpls(rest, &mut mpls_labels);
+        let (used, count) = parse_mpls(&data[offset..], &mut mpls_labels);
+        offset += used;
         miniflow_push_words_32!(mf, mpls_lse, &mpls_labels, count);
     }
 
     // TODO:L3
     // TODO:L4
-    Ok(&data[offset..])
+    return Ok((offset, l2_5_ofs));
 }
 
-fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) {
+pub fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) {
 
     if md.tunnel.dst_is_set() {
         let md_size = offsetOf!(flow_tnl, metadata) / mem::size_of::<u64>();
@@ -313,7 +322,7 @@ mod tests {
         let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
 
         let data = [0x00, 0x01, 0x02, 0x03];
-        assert_eq!(parse_dp_packet(&data, &mut mfx).err(), Some(ParseError::BadLength));
+        assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).err(), Some(ParseError::BadLength));
     }
 
     #[test]
@@ -324,7 +333,7 @@ mod tests {
         let data = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, /* dst MAC */
                     0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, /* src MAC */
                     0x08, 0x00];                        /* EtherType */
-        assert_eq!(parse_dp_packet(&data, &mut mfx).is_ok(), true);
+        assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).is_ok(), true);
 
         let expected: &mut [u64] =
             &mut [0x7766554433221100, 0x0008bbaa9988, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -343,7 +352,7 @@ mod tests {
                     0x81, 0x00,                         /* vlan: TPID */
                     0x01, 0xFF,                         /* vlan: TCI */
                     0x08, 0x00];                        /* EtherType */
-        assert_eq!(parse_dp_packet(&data, &mut mfx).is_ok(), true);
+        assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).is_ok(), true);
 
         let expected: &mut [u64] =
             &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF010081, 0, 0, 0, 0, 0, 0, 0,
@@ -363,7 +372,7 @@ mod tests {
                     0x81, 0x00,                         /* vlan: TPID */
                     0x02, 0xFF,                         /* vlan: TCI */
                     0x08, 0x00];                        /* EtherType */
-        assert_eq!(parse_dp_packet(&data, &mut mfx).is_ok(), true);
+        assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).is_ok(), true);
 
         let expected: &mut [u64] =
             &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF020081FF01A888, 0, 0, 0, 0, 0, 0, 0,
@@ -383,7 +392,7 @@ mod tests {
                     0x00, 0x11, 0x00, 0x33,
                     0x00, 0x11, 0x00, 0x44,
                     0x00, 0x11, 0x01, 0x55];
-        assert_eq!(parse_dp_packet(&data, &mut mfx).is_ok(), true);
+        assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).is_ok(), true);
 
         let expected: &mut [u64] =
             &mut [0x7766554433221100, 0x4788bbaa9988, 0x3300110022001100, 0x44001100,
@@ -403,7 +412,7 @@ mod tests {
                     0x00, 0x00, 0x00, 0x09, 0x00,       /* SNAP */
                     0x00, 0x11, 0x00, 0x44,
                     0x00, 0x11, 0x01, 0x55];
-        assert_eq!(parse_dp_packet(&data, &mut mfx).is_ok(), true);
+        assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).is_ok(), true);
 
         let expected: &mut [u64] =
             &mut [0x7766554433221100, 0x0009bbaa9988, 0, 0,

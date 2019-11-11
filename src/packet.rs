@@ -2,6 +2,10 @@ use crate::types::*;
 use crate::flow::*;
 use std::mem;
 
+/* For packet type */
+const OFPHTN_ONF: u16 = 0;
+const OFPHTN_ETHERTYPE: u16 = 1;
+
 pub const ETH_ADDR_SIZE: usize = mem::size_of::<EtherAddr>();
 pub const ETH_TYPE_SIZE: usize = 2;
 pub const ETH_HEADER_SIZE: usize = 14;
@@ -34,6 +38,21 @@ pub enum EtherType {
     Erspan1     = 0x88be,   /* version 1 type II */
     Nsh         = 0x894f,
 }
+
+macro_rules! PACKET_TYPE {
+    ($NS: tt, $NS_TYPE: tt) => {
+        (($NS as u32) << 16 | ($NS_TYPE as u32))
+    };
+}
+
+pub const PT_ETH: u32 = PACKET_TYPE!(OFPHTN_ONF, 0x0000);
+pub const PT_USE_NEXT_PROTO: u32  = PACKET_TYPE!(OFPHTN_ONF, 0xfffe);  /* Pseudo PT for decap. */
+pub const PT_IPV4: u32 = PACKET_TYPE!(OFPHTN_ETHERTYPE, (EtherType::Ip as u16));
+pub const PT_IPV6: u32  = PACKET_TYPE!(OFPHTN_ETHERTYPE, (EtherType::Ipv6 as u16));
+pub const PT_MPLS: u32 = PACKET_TYPE!(OFPHTN_ETHERTYPE, (EtherType::Mpls as u16));
+pub const PT_MPLS_MC: u32 = PACKET_TYPE!(OFPHTN_ETHERTYPE, (EtherType::MplsMcast as u16));
+pub const PT_NSH: u32 = PACKET_TYPE!(OFPHTN_ETHERTYPE, (EtherType::Nsh as u16));
+pub const PT_UNKNOWN: u32 = PACKET_TYPE!(0xffff, 0xffff);  /* Unknown packet type. */
 
 #[repr(C)]
 pub struct EtherAddr(pub [u8; 6]);
