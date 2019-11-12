@@ -33,7 +33,18 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
         let packet_type_be =  (*packet).packet_type;
 
         parse_metadata(md, packet_type_be, mfx);
+        (*packet).reset_offset();
+
         let result = parse_l2(data, mfx, packet_type_be);
+        if result.is_err() {
+            // XXX: goto
+            (*dst).map = mfx.map;
+            return ;
+        } else {
+            let (offset, l2_5_ofs) = result.unwrap();
+            (*packet).l2_5_ofs = l2_5_ofs;
+            (*packet).l3_ofs = offset as u16;
+        }
     }
 }
 

@@ -51,7 +51,7 @@ macro_rules! DIV_ROUND_UP {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug,Copy,Clone)]
 pub struct flowmap {
     pub bits: [u64; FLOWMAP_UNITS],
     //bv: BitVec,

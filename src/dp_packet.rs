@@ -92,6 +92,13 @@ impl Dp_packet {
             }
         }
     }
+
+    pub fn reset_offset(&mut self) {
+        self.l2_pad_size = 0;
+        self.l2_5_ofs = std::u16::MAX;
+        self.l3_ofs = std::u16::MAX;
+        self.l4_ofs = std::u16::MAX;
+    }
 }
 
 #[cfg(test)]
