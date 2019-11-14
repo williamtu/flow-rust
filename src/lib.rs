@@ -32,7 +32,7 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
         let data = (*packet).dp_packet_data();
         let packet_type_be =  (*packet).packet_type;
 
-        parse_metadata(md, packet_type_be, mfx);
+        let ct_nw_proto_data_ofs = parse_metadata(md, packet_type_be, mfx);
         (*packet).reset_offset();
 
         let result = parse_l2(data, mfx, packet_type_be);
@@ -40,11 +40,13 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
             // XXX: goto
             (*dst).map = mfx.map;
             return ;
-        } else {
-            let (offset, l2_5_ofs) = result.unwrap();
-            (*packet).l2_5_ofs = l2_5_ofs;
-            (*packet).l3_ofs = offset as u16;
         }
+
+        let (offset, l2_5_ofs, dl_type) = result.unwrap();
+        (*packet).l2_5_ofs = l2_5_ofs;
+        (*packet).l3_ofs = offset as u16;
+
+        let result = parse_l3(data, mfx, md, dl_type, ct_nw_proto_data_ofs);
     }
 }
 

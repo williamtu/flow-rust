@@ -298,6 +298,13 @@ impl<'a> mf_ctx<'a> {
         let mask = !((1_u64 << bit) - 1);
         self.data[offset] &= mask;
     }
+
+    pub fn miniflow_push_ct_nw_proto(&mut self, offset: usize, value: u8) {
+        let ofs = offsetOf!(crate::flow::Flow, ct_nw_proto);
+        self.miniflow_assert_in_map(ofs / 8);
+        let shft = (ofs % 8) * 8;
+        self.data[offset] |= (value as u64) << shft;
+    }
 }
 
 // Arrays are stack allocated

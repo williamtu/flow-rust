@@ -3,6 +3,11 @@ use std::slice;
 
 pub const FLOW_TNL_F_UDPIF : u16 =  (1 << 4);
 
+/* Fragment bits, used for IPv4 and IPv6, always zero for non-IP flows. */
+pub const FLOW_NW_FRAG_ANY: u8 = (1 << 0); /* Set for any IP frag. */
+pub const FLOW_NW_FRAG_LATER: u8 =  (1 << 1); /* Set for IP frag with nonzero offset. */
+pub const FLOW_NW_FRAG_MASK: u8 =  (FLOW_NW_FRAG_ANY | FLOW_NW_FRAG_LATER);
+
 #[derive ( Copy, Clone, Default )]
 #[repr(C)]
 pub struct eth_addr {
@@ -25,33 +30,34 @@ impl Default for C2RustUnnamed_0 {
     }
 }
 
-#[derive ( Copy, Clone, Default )]
+#[derive ( Copy, Clone)]
 #[repr(C)]
-pub struct in6_addr {
-    pub u: C2RustUnnamed_1,
+pub union in6_addr {
+    pub be_16: [u16; 8],
+    pub be_32: [u32; 4],
+}
+
+impl Default for in6_addr {
+    fn default() -> in6_addr {
+        in6_addr {
+            be_32: [0; 4],
+        }
+    }
 }
 
 impl in6_addr {
     pub fn ipv6_addr_is_set(&self) -> bool {
-        for i in 0..16 {
-            if unsafe {self.u.u_s6_addr[i] != 0} {
+        for i in 0..4 {
+            if unsafe {self.be_32[i] != 0} {
                 return true;
             }
         }
         return false;
     }
-}
 
-#[derive ( Copy, Clone )]
-#[repr ( C )]
-pub union C2RustUnnamed_1 {
-    pub u_s6_addr: [uint8_t; 16],
-}
-
-impl Default for C2RustUnnamed_1 {
-    fn default () -> C2RustUnnamed_1 {
-        C2RustUnnamed_1{
-            u_s6_addr: [0; 16],
+    pub fn as_u64_slice(&self) -> &[u64] {
+        unsafe {
+            slice::from_raw_parts(&self.be_32 as *const _ as *const u64, 2)
         }
     }
 }

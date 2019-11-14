@@ -13,6 +13,7 @@ pub struct Parser {}
 pub enum ParseError {
     BadLength,
     DefaultError,
+    Skip,
 }
 
 fn is_vlan(eth_type: u16) -> bool {
@@ -122,7 +123,7 @@ fn parse_vlan(data: &[u8], vlan_hdrs: &mut [u32; MAX_VLAN_HEADERS]) -> (usize, u
 }
 
 pub fn parse_l2(data: &[u8], mf: &mut miniflow::mf_ctx, packet_type_be: u32)
-    -> Result<(usize, u16), ParseError> {
+    -> Result<(usize, u16, u16), ParseError> {
     let mut offset: usize = 0;
     let mut dl_type: u16 = std::u16::MAX;
     let mut l2_5_ofs: u16 = std::u16::MAX;
@@ -166,12 +167,124 @@ pub fn parse_l2(data: &[u8], mf: &mut miniflow::mf_ctx, packet_type_be: u32)
         miniflow_push_words_32!(mf, mpls_lse, &mpls_labels, count);
     }
 
-    // TODO:L3
     // TODO:L4
-    return Ok((offset, l2_5_ofs));
+    return Ok((offset, l2_5_ofs, dl_type));
 }
 
-pub fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) {
+//XXX: where to put this func.
+fn ipv4_sanity_check() -> bool {
+    return true;
+}
+
+pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
+                dl_type: u16, ct_nw_proto_data_ofs: usize)
+    -> Result<(usize, u8, usize, u16, u16), ParseError> {
+    let mut offset: usize = 0;
+    let mut total_size: usize = data.len();
+    let mut l2_pad_size: u8 = 0;
+    let (mut nw_frag, mut nw_tos, mut nw_ttl, mut nw_proto) = (0u8, 0u8, 0u8, 0u8);
+    let (mut ct_tp_src_be, mut ct_tp_dst_be) = (0u16, 0u16);
+
+
+    if dl_type == EtherType::Ip as u16 {
+        let result = ip_header::sanity_check(data);
+        if result.is_err() {
+            return Err(ParseError::BadLength); // XXX
+        }
+
+        let (ip_header, ip_len, tot_len) = result.unwrap();
+        l2_pad_size = (data.len() - tot_len as usize) as u8;
+        total_size = tot_len as usize;   /* Never pull padding. */
+
+        /* push both source and destination address at once. */
+        miniflow_push_words!(mf, nw_src, ip_header.ip_addrs_as_u64_slice(), 1);
+
+        if ct_nw_proto_data_ofs != 0 && !md.ct_orig_tuple_ipv6 {
+            mf.miniflow_push_ct_nw_proto(ct_nw_proto_data_ofs,
+                                         unsafe { md.ct_orig_tuple.ipv4.ipv4_proto });
+            if unsafe { md.ct_orig_tuple.ipv4.ipv4_proto } != 0 {
+                miniflow_push_words!(mf, ct_nw_src, unsafe { md.ct_orig_tuple.ipv4.ipv4_addrs_as_u64_slice() }, 1);
+                ct_tp_src_be = unsafe { md.ct_orig_tuple.ipv4.src_port_be };
+                ct_tp_dst_be = unsafe { md.ct_orig_tuple.ipv4.dst_port_be };
+            }
+        }
+
+        miniflow_push_be32!(mf, ipv6_label, 0);
+
+        nw_tos = ip_header.ip_tos;
+        nw_ttl = ip_header.ip_ttl;
+        nw_proto = ip_header.ip_proto;
+        nw_frag = ip_header.get_nw_frag();
+        offset += ip_len;
+    } else if dl_type == EtherType::Ipv6 as u16 {
+        let result = ip6_header::sanity_check(data);
+        if result.is_err() {
+            return Err(ParseError::BadLength); // XXX
+        }
+
+        offset += IP6_HEADER_LEN;
+        let ip6_header = result.unwrap();
+
+        let plen = u16::from_be(ip6_header.ip6_plen_be) as usize;
+        l2_pad_size = (data.len() - offset - plen) as u8;
+        total_size = plen;
+
+        miniflow_push_words!(mf, ipv6_src, ip6_header.ip6_src.as_u64_slice(), 2);
+        miniflow_push_words!(mf, ipv6_src, ip6_header.ip6_dst.as_u64_slice(), 2);
+
+        if ct_nw_proto_data_ofs != 0 && md.ct_orig_tuple_ipv6 {
+            mf.miniflow_push_ct_nw_proto(ct_nw_proto_data_ofs,
+                                         unsafe { md.ct_orig_tuple.ipv6.ipv6_proto });
+            if unsafe { md.ct_orig_tuple.ipv6.ipv6_proto } != 0 {
+                miniflow_push_words!(mf, ct_ipv6_src, unsafe { md.ct_orig_tuple.ipv6.as_u64_slice() },
+                                     2 * std::mem::size_of::<in6_addr>());
+                ct_tp_src_be = unsafe { md.ct_orig_tuple.ipv6.src_port_be };
+                ct_tp_dst_be = unsafe { md.ct_orig_tuple.ipv6.dst_port_be };
+            }
+        }
+
+        let tc_flow: u32 = ip6_header.ip6_flow_be.get_u32_be();
+        nw_tos = (u32::from_be(tc_flow) >> 20) as u8;
+        nw_ttl = ip6_header.ip6_hlim;
+        nw_proto = ip6_header.ip6_nxt;
+
+        /* TODO: parse ipv6 extension header */
+        let label_be: u32 = ip6_header.ip6_flow_be.get_u32_be() & IPV6_LABEL_MASK.to_be();
+        miniflow_push_be32!(mf, ipv6_label, label_be);
+    } else {
+        if dl_type == EtherType::Arp as u16 || dl_type == EtherType::Rarp as u16 {
+            let result = arp_eth_header::try_pull(data);
+            if result.is_ok() {
+                let arp = result.unwrap();
+
+                if arp.ar_hrd_be == 1_u16.to_be()
+                   && arp.ar_pro_be == (EtherType::Ip as u16).to_be()
+                   && arp.ar_hln == ETH_ADDR_SIZE as u8 && arp.ar_pln == 4 {
+                    miniflow_push_be32!(mf, nw_src, arp.ar_spa_be.get_u32_be());
+                    miniflow_push_be32!(mf, nw_dst, arp.ar_tpa_be.get_u32_be());
+
+                    if arp.ar_op_be <= 0xff_u16.to_be() {
+                        miniflow_push_be32!(mf, ipv6_label, 0);
+                        miniflow_push_be32!(mf, nw_frag, (u16::from_be(arp.ar_op_be) as u32).to_be());
+                    }
+
+                    let mut arp_buf = Vec::new();
+                    arp_buf.extend_from_slice(&arp.ar_sha.0);
+                    arp_buf.extend_from_slice(&arp.ar_tha.0);
+                    miniflow_push_macs!(mf, arp_sha, &arp_buf);
+                    miniflow_pad_to_64!(mf, arp_tha);
+                }
+            }
+        } else if dl_type == EtherType::Nsh as u16 {
+            // TODO: NSH
+        }
+        return Err(ParseError::Skip);
+    }
+    return Ok((offset, l2_pad_size, total_size, ct_tp_src_be, ct_tp_dst_be));
+}
+
+pub fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) -> usize {
+    let mut ct_nw_proto_data_ofs: usize = 0;
 
     if md.tunnel.dst_is_set() {
         let md_size = offsetOf!(flow_tnl, metadata) / mem::size_of::<u64>();
@@ -208,7 +321,7 @@ pub fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) {
     if md.ct_state != 0 {
         miniflow_push_uint32!(mf, recirc_id, md.recirc_id);
         miniflow_push_uint8!(mf, ct_state, md.ct_state);
-        //TODO: ct_nw_proto_p = miniflow_pointer(mf, ct_nw_proto);
+        ct_nw_proto_data_ofs = mf.data_ofs;
 
         miniflow_push_uint8!(mf, ct_nw_proto, 0);
         miniflow_push_uint16!(mf, ct_zone, md.ct_zone);
@@ -227,6 +340,7 @@ pub fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) {
         miniflow_pad_from_64!(mf, packet_type);
         miniflow_push_be32!(mf, packet_type, packet_type_be);
     }
+    return ct_nw_proto_data_ofs;
 }
 
 fn miniflow_extract() {

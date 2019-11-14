@@ -10,6 +10,26 @@ pub type size_t = libc::c_ulong;
 
 pub const CACHE_LINE_SIZE: usize = 64;
 
+#[derive(Copy,Clone,Default)]
+#[repr(C)]
+pub struct ovs_16aligned_be32 {
+    pub hi_be: u16,
+    pub lo_be: u16,
+}
+
+impl ovs_16aligned_be32 {
+    #[cfg(target_endian = "big")]
+    pub fn get_u32_be(&self) -> u32 {
+        return (self.hi_be as u32) << 16 | (self.lo_be as u32);
+    }
+
+    #[cfg(target_endian = "little")]
+    pub fn get_u32_be(&self) -> u32 {
+        return (self.lo_be as u32) << 16 | (self.hi_be as u32);
+    }
+
+}
+
 #[derive ( Copy, Clone )]
 #[repr ( C )]
 pub union ovs_u128 {
