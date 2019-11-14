@@ -373,6 +373,126 @@ impl arp_eth_header {
     }
 }
 
+pub const IPPROTO_ICMP: u8 = 1;
+pub const IPPROTO_IGMP: u8 = 2;
+pub const IPPROTO_TCP: u8 = 6;
+pub const IPPROTO_UDP: u8 = 17;
+pub const IPPROTO_ICMPV6: u8 = 58;
+pub const IPPROTO_SCTP: u8 = 132;
+
+pub const TCP_HEADER_LEN: usize = 20;
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct tcp_header {
+    pub tcp_src_be: u16,
+    pub tcp_dst_be: u16,
+    pub tcp_seq: ovs_16aligned_be32,
+    pub tcp_ack: ovs_16aligned_be32 ,
+    pub tcp_ctl_be: u16,
+    pub tcp_winsz_be: u16,
+    pub tcp_csum_be: u16,
+    pub tcp_urg_be: u16,
+}
+
+pub const UDP_HEADER_LEN: usize = 8;
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct udp_header {
+    pub udp_src: u16,
+    pub udp_dst: u16,
+    pub udp_len: u16,
+    pub udp_csum: u16,
+}
+
+pub const SCTP_HEADER_LEN: usize = 12;
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+struct sctp_header {
+    pub sctp_src: u16,
+    pub sctp_dst: u16,
+    pub sctp_vtag: ovs_16aligned_be32,
+    pub sctp_csum: ovs_16aligned_be32,
+}
+
+pub const ICMP_HEADER_LEN: usize =  8;
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct icmp_echo {
+    pub id_be: u16,
+    pub seq_be: u16,
+}
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct icmp_frag {
+    pub empty_be: u16,
+    pub mut_be: u16,
+}
+
+#[derive(Clone,Copy)]
+#[repr(C)]
+pub union icmp_fields {
+    pub echo: icmp_echo,
+    pub frag: icmp_frag,
+    pub gate_way: ovs_16aligned_be32,
+}
+
+impl Default for icmp_fields {
+    fn default() -> icmp_fields {
+        icmp_fields {
+            echo: Default::default(),
+        }
+    }
+}
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct icmp_header {
+    pub icmp_type: u8,
+    pub icmp_code: u8,
+    pub icmp_csum_be: u16,
+    pub fields: icmp_fields,
+}
+
+pub const IGMP_HEADER_LEN: usize = 8;
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct igmp_header {
+    pub igmp_type: u8,
+    pub igmp_code: u8,
+    pub igmp_csum_be: u16,
+    pub group: ovs_16aligned_be32,
+}
+
+pub const ICMP6_HEADER_LEN: usize =  4;
+
+#[derive(Clone,Copy)]
+#[repr(C)]
+pub struct icmp6_header {
+    pub icmp6_type: u8,
+    pub icmp6_code: u8,
+    pub icmp6_cksum_be: u16,
+}
+
+pub const ICMP6_DATA_HEADER_LEN: usize = 8;
+
+#[derive(Clone,Copy)]
+#[repr(C)]
+pub struct icmp6_data_header {
+    pub icmp6_base: icmp6_header,
+    pub icmp6_data_be: u32,
+    /*
+    union {
+        ovs_16aligned_be32 be32[1];
+        ovs_be16           be16[2];
+        uint8_t            u8[4];
+    } icmp6_data; */
+}
+
 #[cfg(test)]
 mod tests {
     use std::mem;
@@ -384,6 +504,12 @@ mod tests {
         assert_eq!(mem::size_of::<ip6_header>(), IP6_HEADER_LEN);
         assert_eq!(mem::size_of::<ovs_key_ct_tuple_ipv6>(), 40);
         assert_eq!(mem::size_of::<arp_eth_header>(), ARP_ETH_HEADER_LEN);
+        assert_eq!(mem::size_of::<tcp_header>(), TCP_HEADER_LEN);
+        assert_eq!(mem::size_of::<udp_header>(), UDP_HEADER_LEN);
+        assert_eq!(mem::size_of::<sctp_header>(), SCTP_HEADER_LEN);
+        assert_eq!(mem::size_of::<icmp_header>(), ICMP_HEADER_LEN);
+        assert_eq!(mem::size_of::<igmp_header>(), IGMP_HEADER_LEN);
+        assert_eq!(mem::size_of::<icmp6_data_header>(), ICMP6_DATA_HEADER_LEN);
     }
 
     #[test]
