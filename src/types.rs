@@ -68,3 +68,14 @@ impl ovs_u128 {
         }
     }
 }
+
+
+#[cfg(target_endian = "big")]
+pub fn bytes_to_be32(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
+    return (b0 as u32) << 24 | (b1 as u32) << 16 | (b2 as u32) << 8 | b3 as u32;
+}
+
+#[cfg(target_endian = "little")]
+pub fn bytes_to_be32(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
+    return (b3 as u32) << 24 | (b2 as u32) << 16 | (b1 as u32) << 8 | b0 as u32;
+}
