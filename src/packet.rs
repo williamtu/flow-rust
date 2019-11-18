@@ -2,6 +2,7 @@ use crate::flow::*;
 use crate::parser::*;
 use crate::types::*;
 use std::mem;
+use std::ptr;
 use std::slice;
 
 /* For packet type */
@@ -212,6 +213,30 @@ pub struct pkt_metadata {
     pub tunnel: flow_tnl,
 }
 
+impl Default for pkt_metadata {
+    fn default() -> pkt_metadata {
+        pkt_metadata {
+            recirc_id: 0,
+            dp_hash: 0,
+            skb_priority: 0,
+            pkt_mark: 0,
+            ct_state: 0,
+            ct_orig_tuple_ipv6: false,
+            ct_zone: 0,
+            ct_mark: 0,
+            ct_label: Default::default(),
+            in_port: Default::default(),
+            conn: ptr::null_mut(),
+            reply: false,
+            icmp_related: false,
+            pad_to_cacheline_64_1: [0_u8; 4],
+            ct_orig_tuple: Default::default(),
+            pad_to_cacheline_64_2: [0_u8; 24],
+            tunnel: Default::default(),
+        }
+    }
+}
+
 #[derive(Clone,Copy,Default)]
 #[repr(C)]
 pub struct ip_header {
@@ -229,7 +254,7 @@ pub struct ip_header {
 
 impl ip_header {
     pub fn ip_ihl(&self) -> u8 {
-        return self.ip_ihl_ver >> 4;
+        return self.ip_ihl_ver & 0xF_u8;
     }
 
     pub fn is_fragment(&self) -> bool {

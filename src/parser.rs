@@ -171,14 +171,9 @@ pub fn parse_l2(data: &[u8], mf: &mut miniflow::mf_ctx, packet_type_be: u32)
     return Ok((offset, l2_5_ofs, dl_type));
 }
 
-//XXX: where to put this func.
-fn ipv4_sanity_check() -> bool {
-    return true;
-}
-
 pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
                 dl_type: u16, ct_nw_proto_data_ofs: usize)
-    -> Result<(usize, u8, usize, u16, u16), ParseError> {
+    -> Result<(usize, u8, usize, u8, u8, u16, u16), ParseError> {
     let mut offset: usize = 0;
     let mut total_size: usize = data.len();
     let mut l2_pad_size: u8 = 0;
@@ -280,7 +275,9 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
         }
         return Err(ParseError::Skip);
     }
-    return Ok((offset, l2_pad_size, total_size, ct_tp_src_be, ct_tp_dst_be));
+
+    miniflow_push_be32!(mf, nw_frag, bytes_to_be32(nw_frag, nw_tos, nw_ttl, nw_proto));
+    return Ok((offset, l2_pad_size, total_size, nw_frag, nw_proto, ct_tp_src_be, ct_tp_dst_be));
 }
 
 pub fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) -> usize {
@@ -534,4 +531,81 @@ mod tests {
         assert_eq!(mfx.data, expected);
     }
 
+    #[test]
+    fn l3_ipv4() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let dl_type: u16 = EtherType::Ip as u16;
+
+        let data = [0x45, 0x30,     /* version/IHL, DSCP/ECN */
+                    0x00, 0x14,     /* Total Length */
+                    0x00, 0x00, 0x00, 0x00, /* Identifictaion, Flags, Frag offset */
+                    0x05, 0x06, 0x00, 0x00, /* TTL, Protocol, Header checksum */
+                    0x0a, 0x01, 0x01, 0x01, /* Src IP */
+                    0x0a, 0x01, 0x01, 0x02, /* Dst IP */
+                    ];
+        assert_eq!(parse_l3(&data, &mut mfx, &md, dl_type, 0).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x0201010a0101010a, 0x0605300000000000, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x401]);
+    }
+
+    #[test]
+    fn l3_ipv6() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let dl_type: u16 = EtherType::Ipv6 as u16;
+
+        let data = [0x63, 0x34, 0x22, 0x11, /* version, traffic class, flow label */
+                    0x00, 0x08,             /* payload length */
+                    0x06, 0x22,             /* Next Header, Hop Limit */
+                    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,  /* Src Addr */
+                    0xaa, 0xaa, 0xbb, 0xbb, 0xcc, 0xcc, 0xdd, 0xdd,
+                    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,  /* Dst Addr */
+                    0xff, 0xff, 0xaa, 0xaa, 0xbb, 0xbb, 0xcc, 0xcc,
+                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,  /* payload */
+                    ];
+        assert_eq!(parse_l3(&data, &mut mfx, &md, dl_type, 0).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x8877665544332211, 0xddddccccbbbbaaaa,
+                    0x8877665544332211, 0xccccbbbbaaaaffff,
+                    0x0622330011220400, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x40c]);
+    }
+
+    #[test]
+    fn l3_arp() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let dl_type: u16 = EtherType::Arp as u16;
+
+        let data = [0x00, 0x01,     /* hardware type */
+                    0x08, 0x00,     /* protocol type */
+                    0x06, 0x04,     /* hlen, plen */
+                    0x00, 0x01,     /* opertation */
+                    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, /* sender hardware address */
+                    0x01, 0x02, 0x03, 0x04,             /* sender protocol address */
+                    0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, /* target hardware address */
+                    0x05, 0x06, 0x07, 0x08,             /* target protocol address */
+
+                    ];
+        assert_eq!(parse_l3(&data, &mut mfx, &md, dl_type, 0).is_err(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x0807060504030201, 0x0100000000000000,
+                    0x8877665544332211, 0xccbbaa99,
+                    0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x6401]);
+    }
 }
