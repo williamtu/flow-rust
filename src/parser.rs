@@ -280,6 +280,93 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
     return Ok((offset, l2_pad_size, total_size, nw_frag, nw_proto, ct_tp_src_be, ct_tp_dst_be));
 }
 
+fn parse_icmpv6(icmp6: &icmp6_data_header) -> bool {
+    if icmp6.icmp6_base.icmp6_code != 0 ||
+       icmp6.icmp6_base.icmp6_type != ND_NEIGHBOR_SOLICIT &&
+       icmp6.icmp6_base.icmp6_type != ND_NEIGHBOR_SOLICIT {
+        return false;
+    }
+    // XXX: parse ND packets
+    assert_eq!(true, false);
+    return true;
+}
+pub fn parse_l4(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
+                nw_proto: u8, nw_frag: u8, ct_tp_src_be: u16, ct_tp_dst_be: u16)
+    -> Result<(), ParseError> {
+    if nw_frag & FLOW_NW_FRAG_LATER == 0 {
+        if nw_proto == IPPROTO_TCP {
+            if data.len() >= TCP_HEADER_LEN {
+                let tcp_header = tcp_header::from_u8_slice(data);
+
+                miniflow_pad_from_64!(mf, tcp_flags);
+                miniflow_push_be16!(mf, tcp_flags, tcp_header.tcp_ctl_be);
+                miniflow_pad_to_64!(mf, tcp_flags);
+
+                miniflow_push_be16!(mf, tp_src, tcp_header.tcp_src_be);
+                miniflow_push_be16!(mf, tp_dst, tcp_header.tcp_dst_be);
+                miniflow_push_be16!(mf, ct_tp_src, ct_tp_src_be);
+                miniflow_push_be16!(mf, ct_tp_dst, ct_tp_dst_be);
+            }
+        } else if nw_proto == IPPROTO_UDP {
+            if data.len() >= UDP_HEADER_LEN {
+                let udp_header = udp_header::from_u8_slice(data);
+
+                miniflow_push_be16!(mf, tp_src, udp_header.udp_src_be);
+                miniflow_push_be16!(mf, tp_dst, udp_header.udp_dst_be);
+                miniflow_push_be16!(mf, ct_tp_src, ct_tp_src_be);
+                miniflow_push_be16!(mf, ct_tp_dst, ct_tp_dst_be);
+            }
+        } else if nw_proto == IPPROTO_SCTP {
+            if data.len() >= SCTP_HEADER_LEN {
+                let sctp_header = sctp_header::from_u8_slice(data);
+
+                miniflow_push_be16!(mf, tp_src, sctp_header.sctp_src_be);
+                miniflow_push_be16!(mf, tp_dst, sctp_header.sctp_dst_be);
+                miniflow_push_be16!(mf, ct_tp_src, ct_tp_src_be);
+                miniflow_push_be16!(mf, ct_tp_dst, ct_tp_dst_be);
+            }
+        } else if nw_proto == IPPROTO_ICMP {
+            if data.len() >= ICMP_HEADER_LEN {
+                let icmp_header = icmp_header::from_u8_slice(data);
+
+                miniflow_push_be16!(mf, tp_src, (icmp_header.icmp_type as u16).to_be());
+                miniflow_push_be16!(mf, tp_dst, (icmp_header.icmp_code as u16).to_be());
+                //miniflow_push_be16!(mf, tp_dst, (0x88bb_u16).to_be());
+                miniflow_push_be16!(mf, ct_tp_src, ct_tp_src_be);
+                miniflow_push_be16!(mf, ct_tp_dst, ct_tp_dst_be);
+            }
+        } else if nw_proto == IPPROTO_IGMP {
+            if data.len() >= IGMP_HEADER_LEN {
+                let igmp_header = igmp_header::from_u8_slice(data);
+
+                miniflow_push_be16!(mf, tp_src, (igmp_header.igmp_type as u16).to_be());
+                miniflow_push_be16!(mf, tp_dst, (igmp_header.igmp_code as u16).to_be());
+                miniflow_push_be16!(mf, ct_tp_src, ct_tp_src_be);
+                miniflow_push_be16!(mf, ct_tp_dst, ct_tp_dst_be);
+                miniflow_push_be32!(mf, igmp_group_ip4,
+                                    igmp_header.group.get_u32_be());
+            }
+        } else if nw_proto == IPPROTO_ICMPV6 {
+            if data.len() >= ICMP6_DATA_HEADER_LEN {
+                let icmp6 = icmp6_data_header::from_u8_slice(data);
+                let offset: usize = ICMP6_DATA_HEADER_LEN;
+
+                if parse_icmpv6(icmp6) {
+                    // XXX: ND packets
+                } else {
+                    miniflow_push_be16!(mf, tp_src, (icmp6.icmp6_base.icmp6_type as u16).to_be());
+                    miniflow_push_be16!(mf, tp_dst, (icmp6.icmp6_base.icmp6_code as u16).to_be());
+                    miniflow_push_be16!(mf, ct_tp_src, ct_tp_src_be);
+                    miniflow_push_be16!(mf, ct_tp_dst, ct_tp_dst_be);
+                }
+            }
+        }
+    }
+
+    return Ok(());
+}
+
+
 pub fn parse_metadata(md: &pkt_metadata, packet_type_be: u32, mf: &mut mf_ctx) -> usize {
     let mut ct_nw_proto_data_ofs: usize = 0;
 
@@ -607,5 +694,122 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
         assert_eq!(mfx.map.bits, [0, 0x6401]);
+    }
+
+    #[test]
+    fn l4_tcp() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let nw_proto: u8 = IPPROTO_TCP;
+        let nw_frag: u8 = 0;
+        let (ct_tp_src_be, ct_tp_dst_be) = (0x1122_u16.to_be(), 0x3344_u16.to_be());
+
+        let data = [0x11, 0x22, 0x33, 0x44,     /* src and dst port */
+                    0x11, 0x12, 0x13, 0x14,     /* sequence number */
+                    0x15, 0x16, 0x17, 0x18,     /* ack number */
+                    0x55, 0x66, 0x77, 0x88,     /* control, window size */
+                    0x99, 0xaa, 0xbb, 0xcc,     /* checksum, urgent pointer */
+                    ];
+        assert_eq!(parse_l4(&data, &mut mfx, &md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x665500000000, 0x4433221144332211,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x44000]);
+    }
+
+    #[test]
+    fn l4_udp() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let nw_proto: u8 = IPPROTO_UDP;
+        let nw_frag: u8 = 0;
+        let (ct_tp_src_be, ct_tp_dst_be) = (0x1122_u16.to_be(), 0x3344_u16.to_be());
+
+        let data = [0x11, 0x22, 0x33, 0x44,     /* src and dst port */
+                    0x00, 0x08,                 /* len */
+                    0x00, 0x00,                 /* checksum */
+                    ];
+        assert_eq!(parse_l4(&data, &mut mfx, &md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x4433221144332211,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x40000]);
+    }
+
+    #[test]
+    fn l4_icmp() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let nw_proto: u8 = IPPROTO_ICMP;
+        let nw_frag: u8 = 0;
+        let (ct_tp_src_be, ct_tp_dst_be) = (0x1122_u16.to_be(), 0x3344_u16.to_be());
+
+        let data = [0x77, 0x99,     /* type, code*/
+                    0x00, 0x00,     /* checksum */
+                    0x01, 0x02, 0x03, 0x04, /* other fields */
+                    ];
+        assert_eq!(parse_l4(&data, &mut mfx, &md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x4433221199007700,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x40000]);
+    }
+
+    #[test]
+    fn l4_igmp() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let nw_proto: u8 = IPPROTO_IGMP;
+        let nw_frag: u8 = 0;
+        let (ct_tp_src_be, ct_tp_dst_be) = (0x1122_u16.to_be(), 0x3344_u16.to_be());
+
+        let data = [0x77, 0x99,     /* type, code*/
+                    0x00, 0x00,     /* checksum */
+                    0x01, 0x02, 0x03, 0x04, /* group */
+                    ];
+        assert_eq!(parse_l4(&data, &mut mfx, &md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x4433221199007700, 0x04030201,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0xc0000]);
+    }
+
+    #[test]
+    fn l4_icmpv6() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let nw_proto: u8 = IPPROTO_ICMPV6;
+        let nw_frag: u8 = 0;
+        let (ct_tp_src_be, ct_tp_dst_be) = (0x1122_u16.to_be(), 0x3344_u16.to_be());
+
+        let data = [0x77, 0x99,     /* type, code*/
+                    0x00, 0x00,     /* checksum */
+                    0x01, 0x02, 0x03, 0x04, /* data */
+                    ];
+        assert_eq!(parse_l4(&data, &mut mfx, &md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x4433221199007700,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x40000]);
     }
 }

@@ -419,26 +419,48 @@ pub struct tcp_header {
     pub tcp_urg_be: u16,
 }
 
+// XXX: implment by template?
+impl tcp_header {
+    pub fn from_u8_slice(data: &[u8]) -> &tcp_header {
+        let tcp_header_ptr: *const tcp_header = data.as_ptr() as *const _;
+        return unsafe { &*tcp_header_ptr };
+    }
+}
+
 pub const UDP_HEADER_LEN: usize = 8;
 
 #[derive(Clone,Copy,Default)]
 #[repr(C)]
 pub struct udp_header {
-    pub udp_src: u16,
-    pub udp_dst: u16,
+    pub udp_src_be: u16,
+    pub udp_dst_be: u16,
     pub udp_len: u16,
     pub udp_csum: u16,
+}
+
+impl udp_header {
+    pub fn from_u8_slice(data: &[u8]) -> &udp_header {
+        let udp_header_ptr: *const udp_header = data.as_ptr() as *const _;
+        return unsafe { &*udp_header_ptr };
+    }
 }
 
 pub const SCTP_HEADER_LEN: usize = 12;
 
 #[derive(Clone,Copy,Default)]
 #[repr(C)]
-struct sctp_header {
-    pub sctp_src: u16,
-    pub sctp_dst: u16,
+pub struct sctp_header {
+    pub sctp_src_be: u16,
+    pub sctp_dst_be: u16,
     pub sctp_vtag: ovs_16aligned_be32,
     pub sctp_csum: ovs_16aligned_be32,
+}
+
+impl sctp_header {
+    pub fn from_u8_slice(data: &[u8]) -> &sctp_header {
+        let sctp_header_ptr: *const sctp_header = data.as_ptr() as *const _;
+        return unsafe { &*sctp_header_ptr };
+    }
 }
 
 pub const ICMP_HEADER_LEN: usize =  8;
@@ -482,6 +504,13 @@ pub struct icmp_header {
     pub fields: icmp_fields,
 }
 
+impl icmp_header {
+    pub fn from_u8_slice(data: &[u8]) -> &icmp_header {
+        let icmp_header_ptr: *const icmp_header = data.as_ptr() as *const _;
+        return unsafe { &*icmp_header_ptr };
+    }
+}
+
 pub const IGMP_HEADER_LEN: usize = 8;
 
 #[derive(Clone,Copy,Default)]
@@ -491,6 +520,13 @@ pub struct igmp_header {
     pub igmp_code: u8,
     pub igmp_csum_be: u16,
     pub group: ovs_16aligned_be32,
+}
+
+impl igmp_header {
+    pub fn from_u8_slice(data: &[u8]) -> &igmp_header {
+        let igmp_header_ptr: *const igmp_header = data.as_ptr() as *const _;
+        return unsafe { &*igmp_header_ptr };
+    }
 }
 
 pub const ICMP6_HEADER_LEN: usize =  4;
@@ -504,6 +540,8 @@ pub struct icmp6_header {
 }
 
 pub const ICMP6_DATA_HEADER_LEN: usize = 8;
+pub const ND_NEIGHBOR_SOLICIT: u8 = 135; /* neighbor solicitation */
+pub const ND_NEIGHBOR_ADVERT: u8 = 136; /* neighbor advertisement */
 
 #[derive(Clone,Copy)]
 #[repr(C)]
@@ -516,6 +554,13 @@ pub struct icmp6_data_header {
         ovs_be16           be16[2];
         uint8_t            u8[4];
     } icmp6_data; */
+}
+
+impl icmp6_data_header {
+    pub fn from_u8_slice(data: &[u8]) -> &icmp6_data_header {
+        let icmp6_data_header_ptr: *const icmp6_data_header = data.as_ptr() as *const _;
+        return unsafe { &*icmp6_data_header_ptr };
+    }
 }
 
 #[cfg(test)]
