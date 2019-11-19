@@ -47,6 +47,16 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
         (*packet).l3_ofs = offset as u16;
 
         let result = parse_l3(data, mfx, md, dl_type, ct_nw_proto_data_ofs);
+        if result.is_err() {
+            (*dst).map = mfx.map;
+            return ;
+        }
+
+        let (offset2, l2_pad_size, total_size, nw_frag, nw_proto, ct_tp_src_be, ct_tp_dst_be) = result.unwrap();
+        (*packet).l2_pad_size = l2_pad_size;
+        (*packet).l4_ofs = (offset + offset2) as u16;
+
+        let result = parse_l4(data, mfx, md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be);
     }
 }
 
