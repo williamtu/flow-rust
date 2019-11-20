@@ -50,7 +50,7 @@ macro_rules! DIV_ROUND_UP {
     ($n: expr, $d: expr) => ((($n) + ($d) - 1) / ($d))
 }
 
-
+#[repr(C)]
 #[derive(Debug,Copy,Clone)]
 pub struct flowmap {
     pub bits: [u64; FLOWMAP_UNITS],
@@ -113,6 +113,7 @@ impl flowmap {
 
 }
 
+#[repr(C)]
 pub struct Miniflow {
     pub map: flowmap,
     pub values: [u64; 20],

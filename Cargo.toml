@@ -16,7 +16,7 @@ c2rust-bitfields = "0.3"
 #![feature(stmt_expr_attributes)]
 
 [lib]
-name = "mylib"
+name = "ovsflowrust"
 
 # Create both static and dynamic library
 crate-type = ["staticlib", "cdylib"]

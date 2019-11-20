@@ -22,12 +22,10 @@ use std::slice;
 #[no_mangle]
 pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
                                         dst: *mut Miniflow) {
-    println!("Hello from rust miniflow extract!");
-
-    let mut mf: Miniflow = Miniflow::new();
-    let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+    let mut map: flowmap = flowmap::new();
 
     unsafe {
+        let mut mfx = &mut mf_ctx::from_mf(map, &mut (*dst).values);
         let md = &(*packet).data_.md;
         let data = (*packet).dp_packet_data();
         let packet_type_be =  (*packet).packet_type;
@@ -35,28 +33,40 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
         let ct_nw_proto_data_ofs = parse_metadata(md, packet_type_be, mfx);
         (*packet).reset_offset();
 
-        let result = parse_l2(data, mfx, packet_type_be);
-        if result.is_err() {
-            // XXX: goto
-            (*dst).map = mfx.map;
-            return ;
-        }
+        let (offset, l2_5_ofs, dl_type) = match parse_l2(data, mfx, packet_type_be) {
+            Ok(success_val) => success_val,
+            Err(err) => {
+                (*dst).map = mfx.map;
+                match err {
+                    ParseError::Skip => (),
+                    _ => println!("failed to parse L2 {:?}", err),
+                };
+                return ;
+            },
+        };
 
-        let (offset, l2_5_ofs, dl_type) = result.unwrap();
         (*packet).l2_5_ofs = l2_5_ofs;
         (*packet).l3_ofs = offset as u16;
 
-        let result = parse_l3(data, mfx, md, dl_type, ct_nw_proto_data_ofs);
-        if result.is_err() {
-            (*dst).map = mfx.map;
-            return ;
-        }
+        let (offset2, l2_pad_size, total_size, nw_frag, nw_proto, ct_tp_src_be, ct_tp_dst_be) =
+            match parse_l3(&data[offset..], mfx, md, dl_type, ct_nw_proto_data_ofs) {
+            Ok(success_val) => success_val,
+            Err(err) => {
+                (*dst).map = mfx.map;
+                match err {
+                    ParseError::Skip => (),
+                    _ => (), //println!("failed to parse L3 {:?}", err),
+                };
+                return ;
+            }
+        };
 
-        let (offset2, l2_pad_size, total_size, nw_frag, nw_proto, ct_tp_src_be, ct_tp_dst_be) = result.unwrap();
         (*packet).l2_pad_size = l2_pad_size;
         (*packet).l4_ofs = (offset + offset2) as u16;
 
-        let result = parse_l4(data, mfx, md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be);
+        let result = parse_l4(&data[(offset + offset2)..],  mfx, md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be);
+
+        (*dst).map = mfx.map;
     }
 }
 
