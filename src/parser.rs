@@ -299,7 +299,7 @@ pub fn parse_l4(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
                 let tcp_header = tcp_header::from_u8_slice(data);
 
                 miniflow_pad_from_64!(mf, tcp_flags);
-                miniflow_push_be16!(mf, tcp_flags, tcp_header.tcp_ctl_be);
+                miniflow_push_be16!(mf, tcp_flags, tcp_header.tcp_ctl_be & 0x0fff_u16.to_be());
                 miniflow_pad_to_64!(mf, tcp_flags);
 
                 miniflow_push_be16!(mf, tp_src, tcp_header.tcp_src_be);
@@ -716,7 +716,7 @@ mod tests {
         assert_eq!(parse_l4(&data, &mut mfx, &md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be).is_ok(), true);
 
         let expected: &mut [u64] =
-            &mut [0x665500000000, 0x4433221144332211,
+            &mut [0x660500000000, 0x4433221144332211,
                     0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
