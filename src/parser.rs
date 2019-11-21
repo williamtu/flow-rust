@@ -224,7 +224,7 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
         total_size = plen;
 
         miniflow_push_words!(mf, ipv6_src, ip6_header.ip6_src.as_u64_slice(), 2);
-        miniflow_push_words!(mf, ipv6_src, ip6_header.ip6_dst.as_u64_slice(), 2);
+        miniflow_push_words!(mf, ipv6_dst, ip6_header.ip6_dst.as_u64_slice(), 2);
 
         if ct_nw_proto_data_ofs != 0 && md.ct_orig_tuple_ipv6 {
             mf.miniflow_push_ct_nw_proto(ct_nw_proto_data_ofs,
@@ -667,7 +667,7 @@ mod tests {
                     0x0622330011220400, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x40c]);
+        assert_eq!(mfx.map.bits, [0, 0x43c]);
     }
 
     #[test]
