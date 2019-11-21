@@ -109,7 +109,7 @@ fn parse_vlan(data: &[u8], vlan_hdrs: &mut [u32; MAX_VLAN_HEADERS]) -> (usize, u
         let mut vlan_hdr = VlanHeader { qtag_be: 0 };
         vlan_hdr.qtag2.tpid_be = NativeEndian::read_u16(&data[offset..offset+2]);
         offset += 2;
-        vlan_hdr.qtag2.tci_be = NativeEndian::read_u16(&data[offset..offset+2]);
+        vlan_hdr.qtag2.tci_be = NativeEndian::read_u16(&data[offset..offset+2]) | VLAN_CFI.to_be();
         offset += 2;
 
         unsafe {
@@ -553,9 +553,10 @@ mod tests {
         assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).is_ok(), true);
 
         let expected: &mut [u64] =
-            &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF010081, 0, 0, 0, 0, 0, 0, 0,
+            &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF110081, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0x3800000000000000, 0x0]);
     }
 
     #[test]
@@ -573,9 +574,10 @@ mod tests {
         assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).is_ok(), true);
 
         let expected: &mut [u64] =
-            &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF020081FF01A888, 0, 0, 0, 0, 0, 0, 0,
+            &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF120081FF11A888, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0x3800000000000000, 0x0]);
     }
 
     #[test]

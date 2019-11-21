@@ -94,6 +94,8 @@ impl EtherType {
     }
 }
 
+pub const VLAN_CFI: u16 = 0x1000_u16;
+
 #[derive(Copy,Clone,Default)]
 #[repr(C)]
 pub struct VlanHeader_ {
