@@ -237,7 +237,6 @@ impl<'a> mf_ctx<'a> {
         let (v, rest) = rest.split_at(std::mem::size_of::<u64>());
         self.data[data_ofs] = u64::from_le_bytes(v.try_into().unwrap());
 
-        println!("{:x?}", self.data[data_ofs]);
         let (v2, rest2) = rest.split_at(std::mem::size_of::<u32>());
         self.data[data_ofs + 1] = u32::from_le_bytes(v2.try_into().unwrap()) as u64;
         self.data_ofs += 1;
@@ -295,14 +294,12 @@ impl<'a> mf_ctx<'a> {
 
         let offset = self.data_ofs;
         self.miniflow_set_map(ofs / 8);
-        let bit = (ofs % 8) * 8;
-        let mask = !((1_u64 << bit) - 1);
-        self.data[offset] &= mask;
+        self.data[offset] = 0;
     }
 
     pub fn miniflow_push_ct_nw_proto(&mut self, offset: usize, value: u8) {
         let ofs = offsetOf!(crate::flow::Flow, ct_nw_proto);
-        self.miniflow_assert_in_map(ofs / 8);
+        assert!(self.map.flowmap_is_set(ofs / 8));
         let shft = (ofs % 8) * 8;
         self.data[offset] |= (value as u64) << shft;
     }

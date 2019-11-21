@@ -180,7 +180,6 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
     let (mut nw_frag, mut nw_tos, mut nw_ttl, mut nw_proto) = (0u8, 0u8, 0u8, 0u8);
     let (mut ct_tp_src_be, mut ct_tp_dst_be) = (0u16, 0u16);
 
-
     if dl_type == EtherType::Ip as u16 {
         let result = ip_header::sanity_check(data);
         if result.is_err() {
@@ -473,6 +472,7 @@ mod tests {
             &mut [0x0000004400000033, 0x0000009900000022, 0x0066000500000011, 0x0000080000000077,
                     0x1111, 0x2222, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0x3f0000000000000, 0]);
     }
 
     #[test]
