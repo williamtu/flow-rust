@@ -30,9 +30,12 @@ impl Default for C2RustUnnamed_0 {
     }
 }
 
+pub const IN6_ADDR_LEN: usize = 16;
+
 #[derive ( Copy, Clone)]
 #[repr(C)]
 pub union in6_addr {
+    pub u8_: [u8; 16],
     pub be_16: [u16; 8],
     pub be_32: [u32; 4],
 }

@@ -69,6 +69,14 @@ pub const PT_UNKNOWN: u32 = PACKET_TYPE!(0xffff, 0xffff);  /* Unknown packet typ
 #[repr(C)]
 pub struct EtherAddr(pub [u8; 6]);
 
+impl EtherAddr {
+    pub fn is_zero(&self) -> bool {
+        return self.0[0] == 0 && self.0[1] == 0
+                && self.0[2] == 0 && self.0[3] == 0
+                && self.0[4] == 0 && self.0[5] == 0;
+    }
+}
+
 impl EtherType {
     pub fn from_u16(value: u16) -> Option<EtherType> {
         match value {
@@ -544,12 +552,14 @@ pub struct icmp6_header {
 pub const ICMP6_DATA_HEADER_LEN: usize = 8;
 pub const ND_NEIGHBOR_SOLICIT: u8 = 135; /* neighbor solicitation */
 pub const ND_NEIGHBOR_ADVERT: u8 = 136; /* neighbor advertisement */
+pub const ND_OPT_SOURCE_LINKADDR: u8 = 1;
+pub const ND_OPT_TARGET_LINKADDR: u8 = 2;
 
 #[derive(Clone,Copy)]
 #[repr(C)]
 pub struct icmp6_data_header {
     pub icmp6_base: icmp6_header,
-    pub icmp6_data_be: u32,
+    pub icmp6_data_be: ovs_16aligned_be32,
     /*
     union {
         ovs_16aligned_be32 be32[1];
@@ -562,6 +572,23 @@ impl icmp6_data_header {
     pub fn from_u8_slice(data: &[u8]) -> &icmp6_data_header {
         let icmp6_data_header_ptr: *const icmp6_data_header = data.as_ptr() as *const _;
         return unsafe { &*icmp6_data_header_ptr };
+    }
+}
+
+pub const ND_LLA_OPT_LEN: usize = 8;
+
+#[derive(Clone,Copy)]
+#[repr(C)]
+pub struct ovs_nd_lla_opt {
+    pub type_: u8,              /* One of ND_OPT_*_LINKADDR. */
+    pub len: u8,
+    pub mac: EtherAddr,
+}
+
+impl ovs_nd_lla_opt {
+    pub fn from_u8_slice(data: &[u8]) -> &ovs_nd_lla_opt {
+        let ovs_nd_lla_opt_ptr: *const ovs_nd_lla_opt = data.as_ptr() as *const _;
+        return unsafe { &*ovs_nd_lla_opt_ptr };
     }
 }
 
@@ -582,6 +609,7 @@ mod tests {
         assert_eq!(mem::size_of::<icmp_header>(), ICMP_HEADER_LEN);
         assert_eq!(mem::size_of::<igmp_header>(), IGMP_HEADER_LEN);
         assert_eq!(mem::size_of::<icmp6_data_header>(), ICMP6_DATA_HEADER_LEN);
+        assert_eq!(mem::size_of::<ovs_nd_lla_opt>(), ND_LLA_OPT_LEN);
     }
 
     #[test]

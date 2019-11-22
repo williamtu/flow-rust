@@ -167,7 +167,6 @@ pub fn parse_l2(data: &[u8], mf: &mut miniflow::mf_ctx, packet_type_be: u32)
         miniflow_push_words_32!(mf, mpls_lse, &mpls_labels, count);
     }
 
-    // TODO:L4
     return Ok((offset, l2_5_ofs, dl_type));
 }
 
@@ -279,14 +278,63 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
     return Ok((offset, l2_pad_size, total_size, nw_frag, nw_proto, ct_tp_src_be, ct_tp_dst_be));
 }
 
-fn parse_icmpv6(icmp6: &icmp6_data_header) -> bool {
+fn parse_icmpv6(data: &[u8], icmp6: &icmp6_data_header, rso_flags_be: &mut u32,
+                nd_target: &mut in6_addr, arp_buf: &mut [EtherAddr;2], opt_type: &mut u8) -> bool {
     if icmp6.icmp6_base.icmp6_code != 0 ||
-       icmp6.icmp6_base.icmp6_type != ND_NEIGHBOR_SOLICIT &&
-       icmp6.icmp6_base.icmp6_type != ND_NEIGHBOR_SOLICIT {
+       (icmp6.icmp6_base.icmp6_type != ND_NEIGHBOR_SOLICIT &&
+        icmp6.icmp6_base.icmp6_type != ND_NEIGHBOR_ADVERT) {
         return false;
     }
-    // XXX: parse ND packets
-    assert_eq!(true, false);
+
+    *rso_flags_be = icmp6.icmp6_data_be.get_u32_be();
+
+    if data.len() < IN6_ADDR_LEN {
+        return true;
+    }
+
+    unsafe { nd_target.u8_.copy_from_slice(&data[..IN6_ADDR_LEN]); }
+    let mut rest = &data[IN6_ADDR_LEN..];
+
+    while rest.len() >= 8 {
+        let lla_opt = ovs_nd_lla_opt::from_u8_slice(rest);
+        let opt_len: usize = lla_opt.len as usize * ND_LLA_OPT_LEN;
+
+        if opt_len == 0 || opt_len > rest.len() {
+            return true;
+        }
+
+        if lla_opt.type_ == ND_OPT_SOURCE_LINKADDR && opt_len == 8 {
+            if arp_buf[0].is_zero() {
+                arp_buf[0] = lla_opt.mac;
+                if *opt_type == 0 {
+                    *opt_type = lla_opt.type_;
+                }
+            } else {
+                *nd_target = Default::default();
+                arp_buf[0] = Default::default();
+                arp_buf[1] = Default::default();
+                return true;
+            }
+        } else if lla_opt.type_ == ND_OPT_TARGET_LINKADDR && opt_len == 8 {
+            if arp_buf[1].is_zero() {
+                arp_buf[1] = lla_opt.mac;
+                if *opt_type == 0 {
+                    *opt_type = lla_opt.type_;
+                }
+            } else {
+                *nd_target = Default::default();
+                arp_buf[0] = Default::default();
+                arp_buf[1] = Default::default();
+                return true;
+            }
+        }
+
+        if rest.len() < opt_len {
+            return true;
+        }
+        rest = &rest[opt_len..];
+    }
+
     return true;
 }
 pub fn parse_l4(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
@@ -349,9 +397,36 @@ pub fn parse_l4(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
             if data.len() >= ICMP6_DATA_HEADER_LEN {
                 let icmp6 = icmp6_data_header::from_u8_slice(data);
                 let offset: usize = ICMP6_DATA_HEADER_LEN;
+                let mut nd_target: in6_addr = Default::default();
+                let mut arp_buf: [EtherAddr; 2] = Default::default();
+                let mut rso_flags_be: u32 = 0;
+                let mut opt_type: u8 = 0;
 
-                if parse_icmpv6(icmp6) {
-                    // XXX: ND packets
+                if parse_icmpv6(&data[offset..], icmp6, &mut rso_flags_be, &mut nd_target,
+                                &mut arp_buf, &mut opt_type) {
+                    if nd_target.ipv6_addr_is_set() {
+                        miniflow_push_words!(mf, nd_target, nd_target.as_u64_slice(),
+                                             mem::size_of_val(&nd_target) / 8);
+                    }
+
+                    // XXX: extra memcopy
+                    let mut buf = Vec::new();
+                    buf.extend_from_slice(&arp_buf[0].0);
+                    buf.extend_from_slice(&arp_buf[1].0);
+                    miniflow_push_macs!(mf, arp_sha, &buf);
+
+                    if opt_type != 0 {
+                        miniflow_push_be16!(mf, tcp_flags, (opt_type as u16).to_be());
+                        miniflow_pad_to_64!(mf, tcp_flags);
+                    } else {
+                        miniflow_pad_to_64!(mf, arp_tha);
+                    }
+                    miniflow_push_be16!(mf, tp_src, (icmp6.icmp6_base.icmp6_type as u16).to_be());
+                    miniflow_push_be16!(mf, tp_dst, (icmp6.icmp6_base.icmp6_code as u16).to_be());
+                    miniflow_pad_to_64!(mf, tp_dst);
+
+                    miniflow_push_be32!(mf, igmp_group_ip4, rso_flags_be);
+                    miniflow_pad_to_64!(mf, igmp_group_ip4);
                 } else {
                     miniflow_push_be16!(mf, tp_src, (icmp6.icmp6_base.icmp6_type as u16).to_be());
                     miniflow_push_be16!(mf, tp_dst, (icmp6.icmp6_base.icmp6_code as u16).to_be());
@@ -813,5 +888,31 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
         assert_eq!(mfx.map.bits, [0, 0x40000]);
+    }
+
+    #[test]
+    fn l4_icmpv6_nd() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let nw_proto: u8 = IPPROTO_ICMPV6;
+        let nw_frag: u8 = 0;
+        let (ct_tp_src_be, ct_tp_dst_be) = (0x1122_u16.to_be(), 0x3344_u16.to_be());
+
+        let data = [0x88, 0x00,                 /* Code: 136 (Neighbor Advertisement), Type */
+                    0x73, 0x41,                 /* Checksum */
+                    0xC0, 0x00, 0x00, 0x00,     /* |R|S|O|      Reserved */
+                    0x20, 0x01, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, /* target ND */
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x92,
+                    0x02, 0x01, 0xf8, 0xbc, 0x12, 0x44, 0x34, 0xb6, /* type(1), len(1), ether addr(6) */
+                    ];
+        assert_eq!(parse_l4(&data, &mut mfx, &md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be).is_ok(), true);
+
+        let expected: &mut [u64] =
+            &mut [0xfeca0120, 0x9200000000000000, 0xbcf8000000000000, 0x200b6344412,
+                  0x8800, 0xC0, 0, 0, 0, 0,
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0xc7800]);
     }
 }
