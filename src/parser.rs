@@ -277,7 +277,7 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
                                          unsafe { md.ct_orig_tuple.ipv6.ipv6_proto });
             if unsafe { md.ct_orig_tuple.ipv6.ipv6_proto } != 0 {
                 miniflow_push_words!(mf, ct_ipv6_src, unsafe { md.ct_orig_tuple.ipv6.as_u64_slice() },
-                                     2 * std::mem::size_of::<in6_addr>());
+                                     2 * std::mem::size_of::<in6_addr>() / 8 );
                 ct_tp_src_be = unsafe { md.ct_orig_tuple.ipv6.src_port_be };
                 ct_tp_dst_be = unsafe { md.ct_orig_tuple.ipv6.dst_port_be };
             }

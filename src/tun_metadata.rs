@@ -75,7 +75,8 @@ impl Default for tun_md_opts {
 impl tun_md_opts {
     pub fn as_u64_slice(&self) -> &[u64] {
         unsafe {
-            slice::from_raw_parts(self as *const Self as *const u64, mem::size_of::<tun_md_opts>())
+            slice::from_raw_parts(self as *const Self as *const u64,
+                                  mem::size_of::<tun_md_opts>() / mem::size_of::<u64>())
         }
     }
 }
@@ -112,7 +113,8 @@ impl Default for Tun_metadata {
 impl Tun_metadata {
     pub fn as_u64_slice(&self) -> &[u64] {
         unsafe {
-            slice::from_raw_parts(self as *const Self as *const u64, mem::size_of::<Tun_metadata>())
+            slice::from_raw_parts(self as *const Self as *const u64,
+                                  mem::size_of::<Tun_metadata>() / mem::size_of::<u64>())
         }
     }
 }

@@ -64,7 +64,8 @@ impl ovs_u128 {
 
     pub fn as_u64_slice(&self) -> &[u64] {
         unsafe {
-            slice::from_raw_parts(self as *const Self as *const u64, mem::size_of::<ovs_u128>())
+            slice::from_raw_parts(self as *const Self as *const u64,
+                                  mem::size_of::<ovs_u128>() / mem::size_of::<u64>())
         }
     }
 }

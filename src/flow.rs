@@ -61,7 +61,8 @@ impl in6_addr {
 
     pub fn as_u64_slice(&self) -> &[u64] {
         unsafe {
-            slice::from_raw_parts(&self.be_32 as *const _ as *const u64, 2)
+            slice::from_raw_parts(&self.be_32 as *const _ as *const u64,
+                                  mem::size_of::<in6_addr>() / mem::size_of::<u64>())
         }
     }
 }
@@ -153,7 +154,8 @@ impl flow_tnl {
 
     pub fn as_u64_slice(&self) -> &[u64] {
         unsafe {
-            slice::from_raw_parts(self as *const Self as *const u64, std::mem::size_of::<flow_tnl>())
+            slice::from_raw_parts(self as *const Self as *const u64,
+                                  mem::size_of::<flow_tnl>() / mem::size_of::<u64>())
         }
     }
 }
