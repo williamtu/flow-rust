@@ -170,6 +170,53 @@ pub fn parse_l2(data: &[u8], mf: &mut miniflow::mf_ctx, packet_type_be: u32)
     return Ok((offset, l2_5_ofs, dl_type));
 }
 
+pub fn parse_nsh(data: &[u8], key: &mut ovs_key_nsh) -> bool {
+    if data.len() < NSH_BASE_HDR_LEN {
+        return false;
+    }
+
+    let nsh = nsh_hdr::from_u8_slice(data);
+    let version = nsh.get_ver();
+    let flags = nsh.get_flags();
+    let length = nsh.hdr_len();
+    let ttl = nsh.get_ttl();
+
+    if length > data.len() || version != 0 {
+        return false;
+    }
+
+    key.flags = flags;
+    key.ttl = ttl;
+    key.mdtype = nsh.md_type;
+    key.np = nsh.next_proto;
+    key.path_hdr_be = nsh.path_hdr.get_u32_be();
+
+    match key.mdtype {
+        NSH_M_TYPE1 => {
+            if length != NSH_M_TYPE1_LEN {
+                return false;
+            }
+
+            let md = nsh_md1_ctx::from_u8_slice(&data[NSH_BASE_HDR_LEN..]);
+            for i in 0..4 {
+                key.context_be[i] = md.context[i].get_u32_be();
+            }
+        }
+        NSH_M_TYPE2 => {
+            /* Don't support MD type 2 metedata parsing yet */
+            if length < NSH_BASE_HDR_LEN {
+                return false;
+            }
+        }
+        _ => {
+            /* We don't parse other context headers yet. */
+        }
+    }
+
+    // return length if we want to parse further
+    return true;
+}
+
 pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
                 dl_type: u16, ct_nw_proto_data_ofs: usize)
     -> Result<(usize, u8, usize, u8, u8, u16, u16), ParseError> {
@@ -269,7 +316,11 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
                 }
             }
         } else if dl_type == EtherType::Nsh as u16 {
-            // TODO: NSH
+            let mut nsh: ovs_key_nsh = Default::default();
+
+            if parse_nsh(data, &mut nsh) {
+                miniflow_push_words!(mf, nsh, nsh.as_u64_slice(), 3);
+            }
         }
         return Err(ParseError::Skip);
     }
@@ -771,6 +822,30 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
         assert_eq!(mfx.map.bits, [0, 0x6401]);
+    }
+
+    #[test]
+    fn l3_nsh() {
+        let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
+        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let md: pkt_metadata = Default::default();
+        let dl_type: u16 = EtherType::Nsh as u16;
+
+        let data = [0x30, 0x06,             /* version, flags, ttl, length */
+                    0x01,                   /* md type*/
+                    0x06,                   /* next protocol */
+                    0x00, 0x01, 0x02, 0x03,     /* path header*/
+                    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,     /* md1 context */
+                    0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,     /* md1 context */
+                    ];
+        assert_eq!(parse_l3(&data, &mut mfx, &md, dl_type, 0).is_err(), true);
+
+        let expected: &mut [u64] =
+            &mut [0x0302010006010003, 0x8877665544332211, 0xffeeddccbbaa99,
+                    0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(mfx.data, expected);
+        assert_eq!(mfx.map.bits, [0, 0x38000]);
     }
 
     #[test]

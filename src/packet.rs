@@ -408,6 +408,72 @@ impl arp_eth_header {
     }
 }
 
+pub const NSH_BASE_HDR_LEN: usize = 8;
+pub const NSH_M_TYPE1_LEN: usize = 24;
+pub const NSH_M_TYPE1: u8 = 0x01;
+pub const NSH_M_TYPE2: u8 = 0x02;
+
+pub const NSH_VER_MASK:     u16 = 0xc000_u16;
+pub const NSH_VER_SHIFT:    u16 = 14;
+pub const NSH_FLAGS_MASK:   u16 = 0x3000;
+pub const NSH_FLAGS_SHIFT:  u16 = 12;
+pub const NSH_TTL_MASK:     u16 = 0x0fc0_u16;
+pub const NSH_TTL_SHIFT:    u16 = 6;
+pub const NSH_LEN_MASK:     u16 = 0x003f_u16;
+pub const NSH_LEN_SHIFT:    u16 = 0;
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct nsh_md1_ctx {
+    pub context: [ovs_16aligned_be32; 4],
+}
+
+impl nsh_md1_ctx {
+    pub fn from_u8_slice(data: &[u8]) -> &nsh_md1_ctx {
+        let nsh_md1_ctx_ptr: *const nsh_md1_ctx = data.as_ptr() as *const _;
+        return unsafe { &*nsh_md1_ctx_ptr };
+    }
+}
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct nsh_hdr {
+    pub ver_flags_ttl_len_be: u16,
+    pub md_type: u8,
+    pub next_proto: u8,
+    pub path_hdr: ovs_16aligned_be32,
+    /* XXX
+     * pub md1: nsh_md1_ctx,
+     * pub nsh_md2_tlv: md2, */
+}
+
+impl nsh_hdr {
+    pub fn from_u8_slice(data: &[u8]) -> &nsh_hdr{
+        let nsh_hdr_ptr: *const nsh_hdr = data.as_ptr() as *const _;
+        return unsafe { &*nsh_hdr_ptr };
+    }
+
+    pub fn hdr_len(&self) -> usize {
+        return (((u16::from_be(self.ver_flags_ttl_len_be) & NSH_LEN_MASK)
+                >> NSH_LEN_SHIFT) << 2) as usize;
+    }
+
+    pub fn get_ver(&self) -> u16 {
+        return (u16::from_be(self.ver_flags_ttl_len_be) & NSH_VER_MASK)
+                >> NSH_VER_SHIFT;
+    }
+
+    pub fn get_flags(&self) -> u8 {
+        return ((u16::from_be(self.ver_flags_ttl_len_be) & NSH_FLAGS_MASK)
+                >> NSH_FLAGS_SHIFT) as u8;
+    }
+
+    pub fn get_ttl(&self) -> u8 {
+        return ((u16::from_be(self.ver_flags_ttl_len_be) & NSH_TTL_MASK)
+                >> NSH_TTL_SHIFT) as u8;
+    }
+}
+
 pub const IPPROTO_ICMP: u8 = 1;
 pub const IPPROTO_IGMP: u8 = 2;
 pub const IPPROTO_TCP: u8 = 6;

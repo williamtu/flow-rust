@@ -1,4 +1,5 @@
 use crate::types::*;
+use std::mem;
 use std::slice;
 
 pub const FLOW_TNL_F_UDPIF : u16 =  (1 << 4);
@@ -109,8 +110,17 @@ pub struct ovs_key_nsh {
     pub ttl: uint8_t,
     pub mdtype: uint8_t,
     pub np: uint8_t,
-    pub path_hdr: uint32_t,
-    pub context: [uint32_t; 4],
+    pub path_hdr_be: uint32_t,
+    pub context_be: [uint32_t; 4],
+}
+
+impl ovs_key_nsh {
+    pub fn as_u64_slice(&self) -> &[u64] {
+        unsafe {
+            slice::from_raw_parts(self as *const Self as *const u64,
+                                  mem::size_of::<ovs_key_nsh>() / mem::size_of::<u64>())
+        }
+    }
 }
 
 #[derive ( Copy, Clone, Default )]
