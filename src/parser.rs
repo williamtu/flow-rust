@@ -217,6 +217,74 @@ pub fn parse_nsh(data: &[u8], key: &mut ovs_key_nsh) -> bool {
     return true;
 }
 
+pub fn parse_ipv6_ext_headers(data: &[u8], offset: &mut usize, nw_proto: &mut u8,
+                              nw_frag: &mut u8) -> bool
+{
+    let mut local_offset: usize = 0;
+
+    loop {
+        if (*nw_proto != IPPROTO_HOPOPTS)
+            && (*nw_proto != IPPROTO_ROUTING)
+            && (*nw_proto != IPPROTO_DSTOPTS)
+            && (*nw_proto != IPPROTO_AH)
+            && (*nw_proto != IPPROTO_FRAGMENT) {
+            return true;
+        }
+
+        if data.len() < 8 {
+            return false;
+        }
+
+        let mut rest = &data[local_offset..];
+
+        if (*nw_proto == IPPROTO_HOPOPTS)
+            || (*nw_proto == IPPROTO_ROUTING)
+            || (*nw_proto == IPPROTO_DSTOPTS) {
+            let ext_hdr = ip6_ext::from_u8_slice(rest);
+            let ext_len = ((ext_hdr.ip6e_len + 1) as usize) * 8;
+
+            *nw_proto = ext_hdr.ip6e_nxt;
+            if rest.len() < ext_len {
+                return false;
+            }
+
+            local_offset += ext_len;
+            *offset += ext_len;
+        } else if *nw_proto == IPPROTO_AH {
+            let ext_hdr = ip6_ext::from_u8_slice(rest);
+            let ext_len = ((ext_hdr.ip6e_len + 2) as usize) * 4;
+
+            *nw_proto = ext_hdr.ip6e_nxt;
+            if rest.len() < ext_len {
+                return false;
+            }
+
+            local_offset += ext_len;
+            *offset += ext_len;
+        } else if *nw_proto == IPPROTO_FRAGMENT {
+            let frag_hdr = ovs_16aligned_ip6_frag::from_u8_slice(rest);
+            let frag_len = mem::size_of::<ovs_16aligned_ip6_frag>();
+
+            *nw_proto = frag_hdr.ip6f_nxt;
+            if rest.len() < frag_len {
+                return false;
+            }
+
+            local_offset += frag_len;
+            *offset += frag_len;
+
+            /* We only process the first frag. */
+            if frag_hdr.ip6f_offlg_be != 0_u16.to_be() {
+                *nw_frag = FLOW_NW_FRAG_ANY;
+                if (frag_hdr.ip6f_offlg_be & IP6F_OFF_MASK.to_be()) != 0_u16.to_be() {
+                    *nw_frag |= FLOW_NW_FRAG_LATER;
+                    *nw_proto = IPPROTO_FRAGMENT;
+                }
+            }
+        }
+    }
+}
+
 pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
                 dl_type: u16, ct_nw_proto_data_ofs: usize)
     -> Result<(usize, u8, usize, u8, u8, u16, u16), ParseError> {
@@ -288,7 +356,10 @@ pub fn parse_l3(data: &[u8], mf: &mut miniflow::mf_ctx, md: &pkt_metadata,
         nw_ttl = ip6_header.ip6_hlim;
         nw_proto = ip6_header.ip6_nxt;
 
-        /* TODO: parse ipv6 extension header */
+        if !parse_ipv6_ext_headers(&data[offset..], &mut offset, &mut nw_proto, &mut nw_frag) {
+            return Err(ParseError::Skip);
+        }
+
         let label_be: u32 = ip6_header.ip6_flow_be.get_u32_be() & IPV6_LABEL_MASK.to_be();
         miniflow_push_be32!(mf, ipv6_label, label_be);
     } else {

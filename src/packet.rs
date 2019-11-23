@@ -376,6 +376,38 @@ impl ip6_header {
     }
 }
 
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct ip6_ext {
+    pub ip6e_nxt: u8,
+    pub ip6e_len: u8,
+}
+
+impl ip6_ext {
+    pub fn from_u8_slice(data: &[u8]) -> &ip6_ext {
+        let ip6_ext_ptr: *const ip6_ext = data.as_ptr() as *const _;
+        return unsafe { &*ip6_ext_ptr };
+    }
+}
+
+pub const IP6F_OFF_MASK: u16 = 0xfff8;
+
+#[derive(Clone,Copy,Default)]
+#[repr(C)]
+pub struct ovs_16aligned_ip6_frag {
+    pub ip6f_nxt: u8,
+    pub ip6f_reserved: u8,
+    pub ip6f_offlg_be: u16,
+    pub ip6f_ident: ovs_16aligned_be32,
+}
+
+impl ovs_16aligned_ip6_frag {
+    pub fn from_u8_slice(data: &[u8]) -> &ovs_16aligned_ip6_frag {
+        let ovs_16aligned_ip6_frag_ptr: *const ovs_16aligned_ip6_frag = data.as_ptr() as *const _;
+        return unsafe { &*ovs_16aligned_ip6_frag_ptr };
+    }
+}
+
 pub const ARP_ETH_HEADER_LEN: usize = 28;
 
 #[derive(Clone,Copy,Default)]
@@ -478,8 +510,15 @@ pub const IPPROTO_ICMP: u8 = 1;
 pub const IPPROTO_IGMP: u8 = 2;
 pub const IPPROTO_TCP: u8 = 6;
 pub const IPPROTO_UDP: u8 = 17;
+pub const IPPROTO_AH: u8 = 51;
 pub const IPPROTO_ICMPV6: u8 = 58;
 pub const IPPROTO_SCTP: u8 = 132;
+
+/* IPv6 extenstion header */
+pub const IPPROTO_HOPOPTS: u8 = 0;
+pub const IPPROTO_ROUTING: u8 = 43;
+pub const IPPROTO_FRAGMENT: u8 = 44;
+pub const IPPROTO_DSTOPTS: u8 = 60;
 
 pub const TCP_HEADER_LEN: usize = 20;
 #[derive(Clone,Copy,Default)]
