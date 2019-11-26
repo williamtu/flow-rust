@@ -25,7 +25,7 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
     let mut map: flowmap = flowmap::new();
 
     unsafe {
-        let mut mfx = &mut mf_ctx::from_mf(map, &mut (*dst).values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut map, &mut (*dst).values);
         let md = &(*packet).data_.md;
         let data = (*packet).dp_packet_data();
         let packet_type_be =  (*packet).packet_type;
@@ -36,7 +36,7 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
         let (offset, l2_5_ofs, dl_type) = match parse_l2(data, mfx, packet_type_be) {
             Ok(success_val) => success_val,
             Err(err) => {
-                (*dst).map = mfx.map;
+                (*dst).map = map;
                 match err {
                     ParseError::Skip => (),
                     _ => println!("failed to parse L2 {:?}", err),
@@ -52,7 +52,7 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
             match parse_l3(&data[offset..], mfx, md, dl_type, ct_nw_proto_data_ofs) {
             Ok(success_val) => success_val,
             Err(err) => {
-                (*dst).map = mfx.map;
+                (*dst).map = map;
                 match err {
                     ParseError::Skip => (),
                     _ => (), //println!("failed to parse L3 {:?}", err),
@@ -66,7 +66,7 @@ pub extern "C" fn rust_miniflow_extract(packet: *mut Dp_packet,
 
         let result = parse_l4(&data[(offset + offset2)..],  mfx, md, nw_proto, nw_frag, ct_tp_src_be, ct_tp_dst_be);
 
-        (*dst).map = mfx.map;
+        (*dst).map = map;
     }
 }
 

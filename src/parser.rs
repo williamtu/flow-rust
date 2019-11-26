@@ -627,7 +627,7 @@ fn miniflow_extract() {
 
 }
 
-#[cfg(test)]
+#[cfg(test3)]
 mod tests {
     use super::*;
     use std::ptr;
@@ -662,14 +662,14 @@ mod tests {
         };
 
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         parse_metadata(&md, 0x0800, &mut mfx);
         let expected: &mut [u64] =
             &mut [0x0000004400000033, 0x0000009900000022, 0x0066000500000011, 0x0000080000000077,
                     0x1111, 0x2222, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0x3f0000000000000, 0]);
+        assert_eq!(mf.map.bits, [0x3f0000000000000, 0]);
     }
 
     #[test]
@@ -702,7 +702,7 @@ mod tests {
         };
 
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         parse_metadata(&md, 0x0800, &mut mfx);
         let expected: &mut [u64] =
@@ -714,7 +714,7 @@ mod tests {
     #[test]
     fn l2_bad_length() {
         let mut mf: Miniflow = Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         let data = [0x00, 0x01, 0x02, 0x03];
         assert_eq!(parse_l2(&data, &mut mfx, PT_ETH.to_be()).err(), Some(ParseError::BadLength));
@@ -723,7 +723,7 @@ mod tests {
     #[test]
     fn l2_ethernet() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         let data = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, /* dst MAC */
                     0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, /* src MAC */
@@ -734,13 +734,13 @@ mod tests {
             &mut [0x7766554433221100, 0x0008bbaa9988, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0x1800000000000000, 0]);
+        assert_eq!(mf.map.bits, [0x1800000000000000, 0]);
     }
 
     #[test]
     fn l2_vlan() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         let data = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, /* dst MAC */
                     0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, /* src MAC */
@@ -753,13 +753,13 @@ mod tests {
             &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF110081, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0x3800000000000000, 0x0]);
+        assert_eq!(mf.map.bits, [0x3800000000000000, 0x0]);
     }
 
     #[test]
     fn l2_vlan_double_tagging() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         let data = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, /* dst MAC */
                     0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, /* src MAC */
@@ -774,13 +774,13 @@ mod tests {
             &mut [0x7766554433221100, 0x0008bbaa9988, 0xFF120081FF11A888, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0x3800000000000000, 0x0]);
+        assert_eq!(mf.map.bits, [0x3800000000000000, 0x0]);
     }
 
     #[test]
     fn l2_mpls() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         let data = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, /* dst MAC */
                     0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, /* src MAC */
@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn l2_llc_snap() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
 
         let data = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, /* dst MAC */
                     0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, /* src MAC */
@@ -820,7 +820,7 @@ mod tests {
     #[test]
     fn l3_ipv4() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let dl_type: u16 = EtherType::Ip as u16;
 
@@ -837,13 +837,13 @@ mod tests {
             &mut [0x0201010a0101010a, 0x0605300000000000, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x401]);
+        assert_eq!(mf.map.bits, [0, 0x401]);
     }
 
     #[test]
     fn l3_ipv6() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let dl_type: u16 = EtherType::Ipv6 as u16;
 
@@ -864,13 +864,13 @@ mod tests {
                     0x0622330011220400, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x43c]);
+        assert_eq!(mf.map.bits, [0, 0x43c]);
     }
 
     #[test]
     fn l3_arp() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let dl_type: u16 = EtherType::Arp as u16;
 
@@ -892,13 +892,13 @@ mod tests {
                     0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x6401]);
+        assert_eq!(mf.map.bits, [0, 0x6401]);
     }
 
     #[test]
     fn l3_nsh() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let dl_type: u16 = EtherType::Nsh as u16;
 
@@ -916,13 +916,13 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x38000]);
+        assert_eq!(mf.map.bits, [0, 0x38000]);
     }
 
     #[test]
     fn l4_tcp() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let nw_proto: u8 = IPPROTO_TCP;
         let nw_frag: u8 = 0;
@@ -941,13 +941,13 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x44000]);
+        assert_eq!(mf.map.bits, [0, 0x44000]);
     }
 
     #[test]
     fn l4_udp() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let nw_proto: u8 = IPPROTO_UDP;
         let nw_frag: u8 = 0;
@@ -964,13 +964,13 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x40000]);
+        assert_eq!(mf.map.bits, [0, 0x40000]);
     }
 
     #[test]
     fn l4_icmp() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let nw_proto: u8 = IPPROTO_ICMP;
         let nw_frag: u8 = 0;
@@ -987,13 +987,13 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x40000]);
+        assert_eq!(mf.map.bits, [0, 0x40000]);
     }
 
     #[test]
     fn l4_igmp() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let nw_proto: u8 = IPPROTO_IGMP;
         let nw_frag: u8 = 0;
@@ -1010,13 +1010,13 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0xc0000]);
+        assert_eq!(mf.map.bits, [0, 0xc0000]);
     }
 
     #[test]
     fn l4_icmpv6() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let nw_proto: u8 = IPPROTO_ICMPV6;
         let nw_frag: u8 = 0;
@@ -1033,13 +1033,13 @@ mod tests {
                     0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0x40000]);
+        assert_eq!(mf.map.bits, [0, 0x40000]);
     }
 
     #[test]
     fn l4_icmpv6_nd() {
         let mut mf: miniflow::Miniflow = miniflow::Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         let md: pkt_metadata = Default::default();
         let nw_proto: u8 = IPPROTO_ICMPV6;
         let nw_frag: u8 = 0;
@@ -1059,6 +1059,6 @@ mod tests {
                   0x8800, 0xC0, 0, 0, 0, 0,
                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
-        assert_eq!(mfx.map.bits, [0, 0xc7800]);
+        assert_eq!(mf.map.bits, [0, 0xc7800]);
     }
 }

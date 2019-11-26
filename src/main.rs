@@ -38,15 +38,15 @@ mod tests {
         member_sizeof!(test_macro, m1);
 
         let mut mf: Miniflow =Miniflow::new();
-        let mut mfx = &mut mf_ctx::from_mf(mf.map, &mut mf.values);
+        let mut mfx = &mut mf_ctx::from_mf(&mut mf.map, &mut mf.values);
         miniflow_push_uint32!(mfx, recirc_id, 0xa);
         miniflow_push_uint8!(mfx, ct_state, 0xb);
         miniflow_push_uint8!(mfx, ct_nw_proto, 0xc);
         miniflow_push_uint16!(mfx, ct_zone, 0xd);
 
-        assert_eq!(mfx.map.bits, [0x40000000000000, 0]);
         let expected: &mut [u64] =
             &mut [0xd0c0b0000000a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         assert_eq!(mfx.data, expected);
+        assert_eq!(mf.map.bits, [0x40000000000000, 0]);
     }
 }
