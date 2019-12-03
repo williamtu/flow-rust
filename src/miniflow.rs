@@ -1,7 +1,7 @@
-extern crate bitvec;
+//extern crate bitvec;
 use std::usize;
 use std::convert::TryInto;
-use bitvec::prelude::*;
+//use bitvec::prelude::*;
 
 // use std::fmt::{Debug, Formatter};
 
@@ -72,13 +72,15 @@ impl flowmap {
     }
     //pub fn flowmap_init
     pub fn flowmap_set(&mut self, mut idx: usize, n_bits: usize) {
-        let mut bv = self.bits.as_mut_bitslice::<LittleEndian>();
-        let mut n = n_bits;
 
-        while n > 0 {
-            bv.set(idx, true);
-            idx += 1;
-            n -= 1;
+        let n_bits_mask = (1 << n_bits) - 1;
+        let unit: usize = idx / MAP_T_BITS;
+        idx %= MAP_T_BITS;
+
+        self.bits[unit] |= n_bits_mask << idx;
+
+        if unit + 1 < FLOWMAP_UNITS && idx + n_bits > MAP_T_BITS {
+            self.bits[unit + 1] |= n_bits_mask >> (MAP_T_BITS - idx);
         }
     }
 
@@ -91,18 +93,21 @@ impl flowmap {
     }
 
     pub fn flowmap_is_set(&self, idx: usize) -> bool {
-        let base = self.bits;
-        let bv = base.as_bitslice::<LittleEndian>();
-        return bv[idx];
+        return (self.bits[idx / MAP_T_BITS] &
+               (MAP_1 << (idx % MAP_T_BITS))) != 0;
     }
 
     pub fn assert_flowmap_not_set(&self, idx: usize) {
-        let base = self.bits;
-        let bv = base.as_bitslice::<LittleEndian>();
-        assert_eq!(bv[idx], false);
+        assert_eq!((self.bits[(idx) / MAP_T_BITS] &
+                      (MAP_MAX << ((idx) % MAP_T_BITS))), 0);
+
+        let mut i = idx / MAP_T_BITS + 1;
+        while i < FLOWMAP_UNITS {
+            assert_eq!(self.bits[i], 0);
+            i += 1;
+        }
     }
-    // consider use:
-    //  https://docs.rs/bitvec/0.2.0/bitvec/trait.Bits.html
+/*
     pub fn flowmap_n_1bits(&self) -> usize {
         let base = self.bits;
         let bv = base.as_bitslice::<LittleEndian>();
@@ -110,7 +115,7 @@ impl flowmap {
 
         return bv.count_ones();
     }
-
+*/
 }
 
 #[repr(C)]
