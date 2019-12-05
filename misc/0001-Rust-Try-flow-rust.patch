@@ -1,0 +1,52 @@
+From c615f695ba4a076bb4ed98bfc781ced36c82f00d Mon Sep 17 00:00:00 2001
+From: Yi-Hung Wei <yihung.wei@gmail.com>
+Date: Mon, 25 Nov 2019 10:27:17 -0800
+Subject: [PATCH] Rust: Try flow rust
+
+---
+ lib/automake.mk | 1 +
+ lib/flow.c      | 6 ++++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/lib/automake.mk b/lib/automake.mk
+index 17b36b43d9d7..3424f9c68ecd 100644
+--- a/lib/automake.mk
++++ b/lib/automake.mk
+@@ -10,6 +10,7 @@ lib_LTLIBRARIES += lib/libopenvswitch.la
+ lib_libopenvswitch_la_LIBADD = $(SSL_LIBS)
+ lib_libopenvswitch_la_LIBADD += $(CAPNG_LDADD)
+ lib_libopenvswitch_la_LIBADD += $(LIBBPF_LDADD)
++lib_libopenvswitch_la_LIBADD += -lovsflowrust
+ 
+ if WIN32
+ lib_libopenvswitch_la_LIBADD += ${PTHREAD_LIBS}
+diff --git a/lib/flow.c b/lib/flow.c
+index a18a1e6101cd..4e45ba338b60 100644
+--- a/lib/flow.c
++++ b/lib/flow.c
+@@ -727,9 +727,14 @@ ipv6_sanity_check(const struct ovs_16aligned_ip6_hdr *nh, size_t size)
+  *      present and the packet has at least the content used for the fields
+  *      of interest for the flow, otherwise UINT16_MAX.
+  */
++extern void rust_miniflow_extract(struct dp_packet *packet, struct miniflow *dst);
++
+ void
+ miniflow_extract(struct dp_packet *packet, struct miniflow *dst)
+ {
++#if 1
++    rust_miniflow_extract(packet, dst);
++#else
+     /* Add code to this function (or its callees) to extract new fields. */
+     BUILD_ASSERT_DECL(FLOW_WC_SEQ == 41);
+ 
+@@ -1071,6 +1076,7 @@ miniflow_extract(struct dp_packet *packet, struct miniflow *dst)
+     }
+  out:
+     dst->map = mf.map;
++#endif
+ }
+ 
+ static ovs_be16
+-- 
+2.7.4
+
